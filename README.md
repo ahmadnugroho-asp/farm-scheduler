@@ -31,19 +31,57 @@ A web application for managing farm tasks with PIN-based authentication, powered
 
 ## Setup Instructions
 
-### 1. Clone the Repository
+### Quick Start with Setup Script
+
+The easiest way to get started:
+
+```bash
+cd server
+./setup-dev.sh
+```
+
+This script will:
+- Check Node.js version
+- Install dependencies
+- Create `.env` file
+- Optionally create mock `service-account.json` for testing
+
+### Manual Setup
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/ahmadnugroho-asp/farm-scheduler.git
 cd farm-scheduler
 ```
 
-### 2. Install Dependencies
+#### 2. Install Dependencies
 
 ```bash
 cd server
 npm install
 ```
+
+#### 3. Choose Your Setup Path
+
+**Option A: Quick Development Setup (Using Mocks)**
+
+For testing and development without Google Sheets:
+
+```bash
+# Copy example files
+cp .env.example .env
+cp service-account.json.example service-account.json
+
+# Edit .env if needed
+nano .env
+```
+
+⚠️ **Note**: With mock credentials, the API calls to Google Sheets will fail, but the application structure will work and you can test with fallback mock data in the frontend.
+
+**Option B: Production Setup (Real Google Sheets)**
+
+For full functionality with real Google Sheets:
 
 ### 3. Google Sheets Setup
 
