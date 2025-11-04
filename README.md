@@ -1,5 +1,9 @@
 # Farm Task Scheduler
 
+[![CI](https://github.com/ahmadnugroho-asp/farm-scheduler/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmadnugroho-asp/farm-scheduler/actions/workflows/ci.yml)
+[![Code Quality](https://github.com/ahmadnugroho-asp/farm-scheduler/actions/workflows/code-quality.yml/badge.svg)](https://github.com/ahmadnugroho-asp/farm-scheduler/actions/workflows/code-quality.yml)
+[![Deploy](https://github.com/ahmadnugroho-asp/farm-scheduler/actions/workflows/deploy.yml/badge.svg)](https://github.com/ahmadnugroho-asp/farm-scheduler/actions/workflows/deploy.yml)
+
 A web application for managing farm tasks with PIN-based authentication, powered by Google Sheets as the backend database.
 
 ## Features
