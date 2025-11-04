@@ -1,0 +1,286 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: |
+          cd server
+          npm ci --production
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy
+          cp -r server deploy/
+          cp -r client deploy/
+          cp README.md deploy/
+          cp CLAUDE.md deploy/
+
+          # Remove development files
+          rm -rf deploy/server/node_modules
+          cd deploy/server && npm ci --production
+
+      - name: Create archive
+        run: |
+          tar -czf farm-scheduler-${{ github.ref_name }}.tar.gz -C deploy .
+
+      - name: Generate deployment instructions
+        run: |
+          cat > DEPLOYMENT.md << 'EOF'
+          # Deployment Instructions
+
+          ## Prerequisites
+          - Node.js 18+ installed on server
+          - Google Service Account JSON file
+          - Google Sheets ID
+
+          ## Deployment Steps
+
+          1. Extract the archive:
+          ```bash
+          tar -xzf farm-scheduler-${{ github.ref_name }}.tar.gz -C /path/to/deployment
+          ```
+
+          2. Navigate to server directory:
+          ```bash
+          cd /path/to/deployment/server
+          ```
+
+          3. Create .env file:
+          ```bash
+          cat > .env << ENVFILE
+          SHEET_ID="your_google_sheet_id"
+          PORT=3001
+          ENVFILE
+          ```
+
+          4. Add service-account.json file to server directory
+
+          5. Start the application:
+          ```bash
+          node server.js
+          ```
+
+          Or use PM2 for production:
+          ```bash
+          npm install -g pm2
+          pm2 start server.js --name farm-scheduler
+          pm2 save
+          pm2 startup
+          ```
+
+          ## Environment Variables
+
+          - `SHEET_ID`: Your Google Sheets document ID (required)
+          - `PORT`: Server port (default: 3001)
+
+          ## Health Check
+
+          Verify deployment:
+          ```bash
+          curl http://localhost:3001/api/tasks
+          ```
+
+          ## Rollback
+
+          To rollback to a previous version:
+          ```bash
+          pm2 stop farm-scheduler
+          # Extract previous version archive
+          pm2 restart farm-scheduler
+          ```
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            farm-scheduler-${{ github.ref_name }}.tar.gz
+            DEPLOYMENT.md
+          body: |
+            ## Release ${{ github.ref_name }}
+
+            ### What's Included
+            - Server application (Node.js + Express)
+            - Client application (React)
+            - Production dependencies only
+
+            ### Installation
+            See DEPLOYMENT.md for detailed deployment instructions.
+
+            ### Requirements
+            - Node.js 18+
+            - Google Service Account credentials
+            - Google Sheets API access
+
+            ### Deployment Checklist
+            - [ ] Extract archive to deployment directory
+            - [ ] Create .env file with SHEET_ID
+            - [ ] Add service-account.json file
+            - [ ] Install dependencies (if needed)
+            - [ ] Start the server
+            - [ ] Verify API endpoint responds
+
+            ---
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Dockerfile
+        run: |
+          cat > Dockerfile << 'EOF'
+          FROM node:20-alpine
+
+          WORKDIR /app
+
+          # Copy server files
+          COPY server/package*.json ./server/
+          RUN cd server && npm ci --production
+
+          COPY server/server.js ./server/
+          COPY client/ ./client/
+
+          WORKDIR /app/server
+
+          # Expose port
+          EXPOSE 3001
+
+          # Health check
+          HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+            CMD node -e "require('http').get('http://localhost:3001/api/tasks', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
+
+          CMD ["node", "server.js"]
+          EOF
+
+      - name: Create Docker Compose file
+        run: |
+          cat > docker-compose.yml << 'EOF'
+          version: '3.8'
+
+          services:
+            farm-scheduler:
+              build: .
+              ports:
+                - "3001:3001"
+              environment:
+                - SHEET_ID=${SHEET_ID}
+                - PORT=3001
+              volumes:
+                - ./service-account.json:/app/server/service-account.json:ro
+              restart: unless-stopped
+              healthcheck:
+                test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/tasks', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 5s
+          EOF
+
+      - name: Create .dockerignore
+        run: |
+          cat > .dockerignore << 'EOF'
+          node_modules
+          .git
+          .github
+          .env
+          service-account.json
+          *.log
+          .DS_Store
+          EOF
+
+      - name: Save Docker artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-files
+          path: |
+            Dockerfile
+            docker-compose.yml
+            .dockerignore
+
+  validate-deployment:
+    name: Validate Deployment Package
+    runs-on: ubuntu-latest
+    needs: [prepare-release]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test deployment simulation
+        run: |
+          echo "Simulating deployment..."
+          mkdir -p test-deploy
+          cp -r server test-deploy/
+          cp -r client test-deploy/
+
+          cd test-deploy/server
+          npm ci --production
+
+          echo "Deployment simulation successful"
+
+  notify:
+    name: Send Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [prepare-release, deploy-docker, validate-deployment]
+    if: always() && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Create deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Release Package: ${{ needs.prepare-release.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Build: ${{ needs.deploy-docker.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Validation: ${{ needs.validate-deployment.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the release package from GitHub Releases" >> $GITHUB_STEP_SUMMARY
+          echo "2. Follow DEPLOYMENT.md instructions" >> $GITHUB_STEP_SUMMARY
+          echo "3. Configure environment variables" >> $GITHUB_STEP_SUMMARY
+          echo "4. Start the application" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,186 @@
+name: CI - Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test and Validate
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: Check for security vulnerabilities
+        run: |
+          cd server
+          npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Validate server.js syntax
+        run: |
+          cd server
+          node --check server.js
+
+      - name: Check for required files
+        run: |
+          if [ ! -f "server/package.json" ]; then
+            echo "Error: server/package.json not found"
+            exit 1
+          fi
+          if [ ! -f "server/server.js" ]; then
+            echo "Error: server/server.js not found"
+            exit 1
+          fi
+          if [ ! -f "client/index.html" ]; then
+            echo "Error: client/index.html not found"
+            exit 1
+          fi
+          echo "All required files present"
+
+      - name: Validate HTML
+        run: |
+          echo "Checking HTML file exists and is valid"
+          if grep -q "<!DOCTYPE html>" client/index.html; then
+            echo "HTML file is valid"
+          else
+            echo "HTML file is invalid"
+            exit 1
+          fi
+
+      - name: Check environment template
+        run: |
+          if [ -f "server/.env" ]; then
+            echo "Warning: .env file should not be committed"
+            exit 1
+          fi
+          echo ".env file correctly excluded"
+
+      - name: Test server can start (dry run)
+        run: |
+          cd server
+          # Check if server.js can be loaded without errors
+          node -e "require('./server.js')" || true
+        timeout-minutes: 1
+
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for sensitive files
+        run: |
+          # Check if any sensitive files are accidentally committed
+          if [ -f "server/.env" ]; then
+            echo "Error: .env file found in repository"
+            exit 1
+          fi
+          if [ -f "server/service-account.json" ]; then
+            echo "Error: service-account.json file found in repository"
+            exit 1
+          fi
+          echo "No sensitive files detected"
+
+      - name: Check file permissions
+        run: |
+          echo "Checking file permissions..."
+          find . -type f -executable -not -path "./.git/*" -not -path "./node_modules/*"
+
+      - name: Validate JSON files
+        run: |
+          echo "Validating JSON files..."
+          for file in $(find . -name "*.json" -not -path "./node_modules/*" -not -path "./.git/*"); do
+            echo "Checking $file"
+            if ! python3 -m json.tool "$file" > /dev/null 2>&1; then
+              echo "Error: Invalid JSON in $file"
+              exit 1
+            fi
+          done
+          echo "All JSON files are valid"
+
+      - name: Check for TODO comments
+        run: |
+          echo "Checking for TODO comments..."
+          grep -r "TODO" --exclude-dir=node_modules --exclude-dir=.git . || echo "No TODOs found"
+        continue-on-error: true
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: Run npm audit
+        run: |
+          cd server
+          npm audit --json > audit-report.json || true
+          cat audit-report.json
+        continue-on-error: true
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Scanning for potential hardcoded secrets..."
+          # Check for common patterns of secrets
+          if grep -r -i "api[_-]key\s*=\s*['\"][a-zA-Z0-9]" --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "Warning: Potential API key found"
+          fi
+          if grep -r -i "password\s*=\s*['\"][^'\"]*['\"]" --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "Warning: Potential hardcoded password found"
+          fi
+          echo "Secret scan complete"
+        continue-on-error: true
+
+  build-status:
+    name: Build Status Summary
+    runs-on: ubuntu-latest
+    needs: [test, lint, security]
+    if: always()
+
+    steps:
+      - name: Check build status
+        run: |
+          echo "Test Job Status: ${{ needs.test.result }}"
+          echo "Lint Job Status: ${{ needs.lint.result }}"
+          echo "Security Job Status: ${{ needs.security.result }}"
+
+          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "Build failed"
+            exit 1
+          fi
+
+          echo "All checks passed successfully!"

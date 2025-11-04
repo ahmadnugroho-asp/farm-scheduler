@@ -1,0 +1,184 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  analyze:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Count lines of code
+        run: |
+          echo "## 📊 Code Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          total_lines=$(find . -name "*.js" -not -path "*/node_modules/*" -exec wc -l {} + | tail -1 | awk '{print $1}')
+          js_files=$(find . -name "*.js" -not -path "*/node_modules/*" | wc -l)
+          html_files=$(find . -name "*.html" -not -path "*/node_modules/*" | wc -l)
+
+          echo "- **JavaScript files:** $js_files" >> $GITHUB_STEP_SUMMARY
+          echo "- **HTML files:** $html_files" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total lines of JS code:** $total_lines" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check code complexity
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 File Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          for file in $(find . -name "*.js" -not -path "*/node_modules/*"); do
+            lines=$(wc -l < "$file")
+            echo "- \`$file\`: $lines lines" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Check for console.log statements
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🐛 Debug Statement Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if grep -r "console.log" server/*.js 2>/dev/null; then
+            echo "⚠️ Found console.log statements in server code" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Consider using a proper logging library for production." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No console.log statements found" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
+
+      - name: Check for proper error handling
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🛡️ Error Handling Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          try_catch_count=$(grep -c "try {" server/*.js || echo "0")
+          catch_count=$(grep -c "catch" server/*.js || echo "0")
+
+          echo "- **Try-catch blocks:** $try_catch_count" >> $GITHUB_STEP_SUMMARY
+          echo "- **Catch statements:** $catch_count" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$catch_count" -ge 2 ]; then
+            echo "✅ Good error handling coverage" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Consider adding more error handling" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check documentation coverage
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📝 Documentation Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          comment_lines=$(grep -c "^[[:space:]]*\/\/" server/*.js || echo "0")
+          total_lines=$(wc -l < server/server.js)
+
+          if [ "$total_lines" -gt 0 ]; then
+            coverage=$((comment_lines * 100 / total_lines))
+            echo "- **Comment lines:** $comment_lines" >> $GITHUB_STEP_SUMMARY
+            echo "- **Total lines:** $total_lines" >> $GITHUB_STEP_SUMMARY
+            echo "- **Documentation ratio:** ${coverage}%" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  file-size-check:
+    name: File Size Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check file sizes
+        run: |
+          echo "## 📏 File Size Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          large_files=$(find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -size +100k)
+
+          if [ -z "$large_files" ]; then
+            echo "✅ No large files detected (all files < 100KB)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Large files detected:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -size +100k -exec ls -lh {} \; | awk '{print $5, $9}' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+  api-documentation:
+    name: API Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract API routes
+        run: |
+          echo "## 🌐 API Endpoints" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if grep -E "app\.(get|post|put|delete|patch)" server/server.js; then
+            echo "### Detected Routes:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```javascript' >> $GITHUB_STEP_SUMMARY
+            grep -E "app\.(get|post|put|delete|patch)" server/server.js >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for API documentation
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if grep -q "API Endpoints" README.md; then
+            echo "✅ API documentation found in README.md" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Consider adding API documentation to README.md" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  dependency-graph:
+    name: Dependency Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Analyze dependencies
+        run: |
+          cd server
+          echo "## 📦 Dependency Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Production Dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          node -e "console.log(JSON.stringify(require('./package.json').dependencies, null, 2))" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          dep_count=$(node -e "console.log(Object.keys(require('./package.json').dependencies).length)")
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total production dependencies:** $dep_count" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$dep_count" -le 5 ]; then
+            echo "✅ Minimal dependency footprint" >> $GITHUB_STEP_SUMMARY
+          fi
