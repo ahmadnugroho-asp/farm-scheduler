@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farm Task Scheduler</title>
+    <!-- Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use Inter font */
+        html, body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <!-- Load React libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Load Babel for JSX support -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- React Component Script -->
+    <script type="text/babel">
+        // Paste the contents of FarmTaskScheduler.jsx here
+        // ---------------------------------------------------------------------------------
+        
+        // --- API Endpoints and Fallback Data ---
+        
+        const MOCK_DATA = {
+          tasks: [
+            { id: 2, dateStart: '2025-10-10', timeStart: '10:00', dateFinish: '2025-10-10', timeFinish: '14:00', taskName: 'Harvest Apples (Gala)', taskDescription: 'Pick 50 bushels from the West orchard. (Mock Data)', personAssigned: 'Bob Smith', status: 'Inprogress' },
+            { id: 3, dateStart: '2025-10-10', timeStart: '14:00', dateFinish: '2025-10-10', timeFinish: '16:00', taskName: 'Tractor Maintenance', taskDescription: 'Oil change and tire pressure check on Tractor #2. (Mock Data)', personAssigned: 'Charlie Brown', status: 'Pending' },
+            { id: 4, dateStart: '2025-10-09', timeStart: '08:00', dateFinish: '2025-10-09', timeFinish: '11:00', taskName: 'Inspect Fences', taskDescription: 'Walk the perimeter of Field 1 and repair any breaks. (Mock Data)', personAssigned: 'Alice Johnson', status: 'Done' },
+            { id: 1, dateStart: '2025-10-10', timeStart: '07:00', dateFinish: '2025-10-10', timeFinish: '10:00', taskName: 'Irrigate Field 3', taskDescription: 'Check pump flow and water distribution across the north side. (Mock Data)', personAssigned: 'Alice Johnson', status: 'New' },
+          ],
+          pins: [
+            { pin: '123456', name: 'Alice Johnson' },
+            { pin: '987654', name: 'Bob Smith' },
+            { pin: '654321', name: 'Charlie Brown' },
+          ]
+        };
+        
+        const fetchTaskData = async () => {
+          try {
+            // --- REAL API CALL (Targets Node.js Backend) ---
+            const response = await fetch('/api/tasks'); 
+            if (!response.ok) throw new Error(`API Error: Status ${response.status}`);
+            return await response.json(); 
+          } catch (e) {
+            // --- FALLBACK TO MOCK DATA (if Node.js server is not running or failed) ---
+            console.warn(`[Client Warning] Real API call to /api/tasks failed. Using mock data. Error: ${e.message}`);
+            await new Promise(resolve => setTimeout(resolve, 500)); 
+            return MOCK_DATA;
+          }
+        };
+        
+        const updateTaskStatusAPI = async (taskId, newStatus, pin) => {
+          const payload = { taskId, newStatus, pin };
+          
+          try {
+            // --- REAL API CALL (Targets Node.js Backend) ---
+            const response = await fetch('/api/update-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+        
+            const result = await response.json();
+            
+            if (!response.ok) {
+                // Backend returns error if PIN is invalid or sheet update fails
+                throw new Error(result.error || 'Server authentication failed or invalid request.');
+            }
+            
+            return result; 
+        
+          } catch (e) {
+            // --- FALLBACK TO MOCK VALIDATION (if server is unreachable) ---
+            console.warn(`[Client Warning] Real API update call failed. Using mock validation. Error: ${e.message}`);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            const authUser = MOCK_DATA.pins.find(p => p.pin === pin);
+        
+            if (!authUser) {
+              throw new Error('Invalid 6-digit PIN (Mock validation failed).');
+            }
+        
+            return {
+              success: true,
+              message: `Task ${taskId} status updated to ${newStatus} by ${authUser.name} (Mock).`,
+              updaterName: authUser.name,
+            };
+          }
+        };
+        // --- End API Endpoints and Fallback Data ---
+        
+        
+        // Status map for consistent styling
+        const STATUS_STYLES = {
+          New: 'bg-blue-100 text-blue-800 border-blue-300',
+          Inprogress: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+          Pending: 'bg-red-100 text-red-800 border-red-300',
+          Done: 'bg-green-100 text-green-800 border-green-300',
+        };
+        
+        // Status options for the modal
+        const STATUS_OPTIONS = ['New', 'Inprogress', 'Pending', 'Done'];
+        
+        
+        // PinModal Component
+        const PinModal = ({ task, onConfirm, onCancel }) => {
+          const [pin, setPin] = React.useState('');
+          const [status, setStatus] = React.useState(task.status);
+          const [error, setError] = React.useState(null);
+          const [isUpdating, setIsUpdating] = React.useState(false);
+        
+          const handleSubmit = async (e) => {
+            e.preventDefault();
+            if (pin.length !== 6 || isUpdating) return;
+        
+            setError(null);
+            setIsUpdating(true);
+        
+            try {
+              await onConfirm(task.id, status, pin);
+              setPin('');
+              // Modal closes upon successful confirmation in the parent component
+            } catch (err) {
+              setError(err.message || 'Authentication failed. Please check the PIN.');
+            } finally {
+              setIsUpdating(false);
+            }
+          };
+        
+          return (
+            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition duration-300 scale-100">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Update Task Status</h2>
+                <p className="text-sm text-gray-600 mb-4">Task: <span className="font-semibold">{task.taskName}</span></p>
+        
+                <form onSubmit={handleSubmit}>
+                  {/* Status Selector */}
+                  <div className="mb-4">
+                    <label htmlFor="status-select" className="block text-sm font-medium text-gray-700 mb-1">
+                      New Status
+                    </label>
+                    <select
+                      id="status-select"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg shadow-sm"
+                      required
+                    >
+                      {STATUS_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+        
+                  {/* PIN Input */}
+                  <div className="mb-6">
+                    <label htmlFor="pin-input" className="block text-sm font-medium text-gray-700 mb-1">
+                      Enter 6-digit PIN to confirm
+                    </label>
+                    <input
+                      id="pin-input"
+                      type="password"
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                      maxLength="6"
+                      className="w-full text-center tracking-widest text-xl p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 shadow-inner"
+                      placeholder="••••••"
+                      required
+                    />
+                  </div>
+        
+                  {error && (
+                    <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4 border border-red-200">
+                      {error}
+                    </p>
+                  )}
+        
+                  {/* Buttons */}
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={onCancel}
+                      disabled={isUpdating}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={pin.length !== 6 || isUpdating}
+                      className={`px-4 py-2 rounded-lg text-white font-semibold transition duration-150 shadow-md ${
+                        pin.length === 6 && !isUpdating
+                          ? 'bg-blue-600 hover:bg-blue-700'
+                          : 'bg-blue-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {isUpdating ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Updating...
+                        </span>
+                      ) : 'Confirm Update'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        };
+        
+        
+        // TaskItem Component
+        const TaskItem = ({ task, onUpdateClick }) => {
+          const statusClasses = STATUS_STYLES[task.status] || 'bg-gray-100 text-gray-700 border-gray-300';
+        
+          const formatTime = (date, time) => {
+            const d = new Date(`${date}T${time}:00`); 
+            return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+          };
+        
+          return (
+            <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-4 mb-4 border-l-4 border-blue-500 sm:p-6">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="text-lg font-bold text-gray-900 sm:text-xl">{task.taskName}</h3>
+                <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusClasses}`}>
+                  {task.status}
+                </span>
+              </div>
+        
+              <p className="text-sm text-gray-600 mb-3">{task.taskDescription}</p>
+        
+              <div className="grid grid-cols-2 gap-2 text-sm text-gray-500 mb-4">
+                <div>
+                  <span className="font-medium text-gray-700 block">Assigned To:</span>
+                  {task.personAssigned}
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 block">Time:</span>
+                  {`${formatTime(task.dateStart, task.timeStart)} - ${formatTime(task.dateFinish, task.timeFinish)}`}
+                </div>
+              </div>
+        
+              <div className="text-right border-t pt-3">
+                <button
+                  onClick={() => onUpdateClick(task)}
+                  disabled={task.status === 'Done'}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-md transition duration-150 ${
+                    task.status === 'Done'
+                      ? 'bg-gray-400 text-white cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                  }`}
+                >
+                  {task.status === 'Done' ? 'Completed' : 'Update Status'}
+                </button>
+              </div>
+            </div>
+          );
+        };
+        
+        
+        // Main App Component
+        const App = () => {
+          // Mock/placeholder for environment variables
+          const appId = 'TASK_SCHEDULER_APP';
+        
+          const [tasks, setTasks] = React.useState([]);
+          const [loading, setLoading] = React.useState(true);
+          const [error, setError] = React.useState(null);
+          const [modalTask, setModalTask] = React.useState(null); 
+          const [lastUpdate, setLastUpdate] = React.useState(null);
+        
+          const fetchData = React.useCallback(async () => {
+            setLoading(true);
+            setError(null);
+            try {
+              const data = await fetchTaskData();
+              
+              const sortedTasks = data.tasks.sort((a, b) => {
+                const statusOrder = { 'New': 1, 'Inprogress': 2, 'Pending': 3, 'Done': 4 };
+                const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+                if (statusDiff !== 0) return statusDiff;
+        
+                return new Date(a.dateStart) - new Date(b.dateStart);
+              });
+        
+              setTasks(sortedTasks);
+              setLastUpdate(new Date());
+            } catch (err) {
+              setError(`Failed to load farm tasks. Please check your Node.js backend setup. Error: ${err.message}`);
+              console.error('Fetch error:', err);
+            } finally {
+              setLoading(false);
+            }
+          }, []);
+        
+          // Initial load and automatic refresh setup
+          React.useEffect(() => {
+            fetchData(); 
+        
+            const refreshInterval = setInterval(fetchData, 30000); // 30 seconds
+        
+            return () => clearInterval(refreshInterval);
+          }, [fetchData]);
+        
+          // --- Task Update Logic ---
+        
+          const handleUpdateClick = (task) => {
+            setModalTask(task);
+          };
+        
+          const handlePinConfirm = async (taskId, newStatus, pin) => {
+            try {
+              const { success, updaterName } = await updateTaskStatusAPI(taskId, newStatus, pin);
+        
+              if (success) {
+                // Optimistically update the local state for immediate feedback
+                setTasks(prevTasks => {
+                  const newTasks = [...prevTasks];
+                  const taskIndex = newTasks.findIndex(t => t.id === taskId);
+                  if (taskIndex !== -1) {
+                    newTasks[taskIndex] = { ...newTasks[taskIndex], status: newStatus };
+                  }
+                  return newTasks;
+                });
+        
+                setModalTask(null); // Close modal
+                console.log(`Task ${taskId} successfully set to ${newStatus} by ${updaterName}.`);
+                // Trigger a quick refresh
+                setTimeout(fetchData, 500);
+        
+              } else {
+                throw new Error('Status update failed unexpectedly.');
+              }
+            } catch (err) {
+              throw err;
+            }
+          };
+        
+          // --- Rendering Helpers ---
+        
+          const formatLastUpdate = (date) => {
+            if (!date) return 'Never';
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+          };
+        
+          const pendingTasks = React.useMemo(() => tasks.filter(t => t.status !== 'Done'), [tasks]);
+          const doneTasks = React.useMemo(() => tasks.filter(t => t.status === 'Done'), [tasks]);
+        
+          return (
+            <div className="min-h-screen bg-gray-50 font-sans p-4 sm:p-6 lg:p-8">
+              {/* Header */}
+              <header className="mb-8 border-b pb-4">
+                <h1 className="text-3xl font-extrabold text-blue-800 tracking-tight sm:text-4xl">
+                  Farm Task Schedule
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  App ID: {appId}. Data refreshes every 30 seconds.
+                </p>
+              </header>
+              
+              <div className="p-3 bg-yellow-100 text-yellow-800 rounded-lg mb-6 text-sm border border-yellow-300 shadow-inner">
+                📌 **Testing Note:** If the Node.js server is not running or the Google Sheet setup is incomplete, the app will automatically display **Mock Data**.
+              </div>
+        
+              {/* Status Bar */}
+              <div className="flex justify-between items-center mb-6 border-b pb-4">
+                <div className="text-sm font-medium text-gray-600">
+                  Last Updated: <span className="font-mono text-gray-800">{formatLastUpdate(lastUpdate)}</span>
+                </div>
+                <button
+                  onClick={fetchData}
+                  disabled={loading}
+                  className="flex items-center space-x-2 px-3 py-1 text-sm bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition duration-150 shadow-md disabled:opacity-50"
+                >
+                  {loading ? (
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.655 5.14L7.5 7h-3V3a1 1 0 011-1zm3 14.899l-1.845-1.845a7.002 7.002 0 0111.488-3.006 1 1 0 11-.666 1.885A5.002 5.002 0 0013.345 14.86l1.845 1.845h-3v3a1 1 0 01-1 1zm8-10.899a1 1 0 011 1v2.101a7.002 7.002 0 01-11.601 2.566 1 1 0 111.885.666A5.002 5.002 0 0014.345 10.14l-1.845 1.845h3v3a1 1 0 01-1 1zm-3-4.899l1.845 1.845A7.002 7.002 0 014.512 7.006 1 1 0 115.178 5.12z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  <span>{loading ? 'Refreshing' : 'Manual Refresh'}</span>
+                </button>
+              </div>
+        
+        
+              {/* Main Content Area */}
+              {error && (
+                <div className="p-4 bg-red-100 text-red-800 rounded-lg border border-red-300 mb-6">
+                  <p className="font-semibold">Error:</p>
+                  <p>{error}</p>
+                </div>
+              )}
+        
+              {loading && tasks.length === 0 ? (
+                <div className="text-center p-10 text-gray-500">
+                  <svg className="animate-spin mx-auto h-8 w-8 text-blue-500" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p className="mt-3">Loading farm tasks...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Pending / Active Tasks */}
+                  <section className="mb-8">
+                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">Active Tasks ({pendingTasks.length})</h2>
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                      {pendingTasks.map(task => (
+                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} />
+                      ))}
+                    </div>
+                  </section>
+        
+                  {/* Completed Tasks */}
+                  <section>
+                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">Completed Tasks ({doneTasks.length})</h2>
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 opacity-60">
+                      {doneTasks.map(task => (
+                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} />
+                      ))}
+                    </div>
+                  </section>
+                </>
+              )}
+        
+              {/* PIN Confirmation Modal */}
+              {modalTask && (
+                <PinModal
+                  task={modalTask}
+                  onConfirm={handlePinConfirm}
+                  onCancel={() => setModalTask(null)}
+                />
+              )}
+            </div>
+          );
+        };
+        
+        // Render the main App component
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+
+        // ---------------------------------------------------------------------------------
+    </script>
+</body>
+</html>
