@@ -476,6 +476,372 @@ sudo systemctl start fail2ban
 
 ---
 
+### Option 5: Docker Compose (Any Platform)
+
+Deploy using Docker containers for maximum portability and consistency across environments.
+
+#### Prerequisites
+
+- Docker installed ([Get Docker](https://docs.docker.com/get-docker/))
+- Docker Compose installed (included with Docker Desktop)
+- Basic knowledge of Docker
+
+#### Step 1: Clone Repository
+
+```bash
+git clone https://github.com/ahmadnugroho-asp/farm-scheduler.git
+cd farm-scheduler
+```
+
+#### Step 2: Setup Environment
+
+```bash
+# Create environment file from example
+cp .env.example .env
+
+# Edit .env file with your Google Sheet ID
+nano .env
+# Set: SHEET_ID=your_google_sheet_id_here
+```
+
+#### Step 3: Add Service Account File
+
+```bash
+# Place your service-account.json in the server directory
+cp /path/to/your/service-account.json server/service-account.json
+```
+
+#### Step 4: Build and Run with Docker Compose
+
+**Development Mode** (without Nginx):
+
+```bash
+# Build and start the application
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Check status
+docker-compose ps
+
+# Access application at http://localhost:3001
+```
+
+**Production Mode** (with Nginx reverse proxy):
+
+```bash
+# Start with Nginx profile
+docker-compose --profile production up -d
+
+# Access application at http://localhost (port 80)
+```
+
+#### Step 5: Verify Deployment
+
+```bash
+# Check if containers are running
+docker-compose ps
+
+# View application logs
+docker-compose logs farm-scheduler
+
+# Test the application
+curl http://localhost:3001/api/tasks
+
+# Check health status
+docker inspect --format='{{.State.Health.Status}}' farm-scheduler-app
+```
+
+---
+
+### Docker Compose - Common Commands
+
+```bash
+# Start containers
+docker-compose up -d
+
+# Stop containers
+docker-compose down
+
+# Restart containers
+docker-compose restart
+
+# View logs
+docker-compose logs -f
+
+# View logs for specific service
+docker-compose logs -f farm-scheduler
+
+# Rebuild containers after code changes
+docker-compose up -d --build
+
+# Remove all containers and volumes
+docker-compose down -v
+
+# Execute command in running container
+docker-compose exec farm-scheduler sh
+
+# Check resource usage
+docker stats
+
+# Pull latest images
+docker-compose pull
+```
+
+---
+
+### Docker Compose - Updating the Application
+
+```bash
+# Pull latest code from GitHub
+git pull origin main
+
+# Rebuild and restart containers
+docker-compose up -d --build
+
+# Alternative: Using Docker image from registry
+# (if you push to Docker Hub or similar)
+docker-compose pull
+docker-compose up -d
+```
+
+---
+
+### Docker Compose - Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# .env
+SHEET_ID=your_google_sheet_id_here
+PORT=3001
+NODE_ENV=production
+```
+
+---
+
+### Docker Compose - Production with SSL
+
+For production with SSL certificates:
+
+1. **Get SSL Certificates** (Let's Encrypt or other):
+
+```bash
+# Using certbot standalone
+mkdir -p nginx/ssl
+sudo certbot certonly --standalone -d your-domain.com
+sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem nginx/ssl/cert.pem
+sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem nginx/ssl/key.pem
+```
+
+2. **Update nginx.conf**:
+
+Uncomment the HTTPS server block in `nginx/nginx.conf` and update the domain name.
+
+3. **Start with SSL**:
+
+```bash
+docker-compose --profile production up -d
+```
+
+---
+
+### Docker Compose - Deployment on Cloud Platforms
+
+#### Deploy on AWS EC2, GCP Compute Engine, or Azure VM:
+
+```bash
+# 1. SSH into your VM
+ssh user@your-vm-ip
+
+# 2. Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# 3. Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# 4. Clone and setup
+git clone https://github.com/ahmadnugroho-asp/farm-scheduler.git
+cd farm-scheduler
+cp .env.example .env
+nano .env  # Edit with your SHEET_ID
+cp /path/to/service-account.json server/service-account.json
+
+# 5. Start the application
+docker-compose up -d
+
+# 6. Configure firewall (if needed)
+# For GCP: Configure firewall rules in console
+# For AWS: Configure Security Groups
+# For Azure: Configure Network Security Groups
+```
+
+#### Deploy on Digital Ocean:
+
+```bash
+# Use Digital Ocean's Docker Droplet
+# SSH and follow same steps as above
+
+# Or use Digital Ocean App Platform with Docker
+# Connect your GitHub repo
+# Set SHEET_ID environment variable in App Platform dashboard
+# Upload service-account.json via App Platform settings
+```
+
+---
+
+### Docker Compose - Monitoring and Logs
+
+```bash
+# View real-time logs
+docker-compose logs -f --tail=100
+
+# Export logs to file
+docker-compose logs > app-logs.txt
+
+# Monitor resource usage
+docker stats farm-scheduler-app
+
+# Check container health
+docker inspect farm-scheduler-app | grep -A 10 Health
+
+# View container details
+docker-compose ps -a
+docker inspect farm-scheduler-app
+```
+
+---
+
+### Docker Compose - Backup and Restore
+
+**Backup**:
+
+```bash
+# Backup service account and environment files
+tar -czf backup-$(date +%Y%m%d).tar.gz \
+  server/service-account.json \
+  .env \
+  docker-compose.yml
+
+# Backup logs (if mounted)
+tar -czf logs-backup-$(date +%Y%m%d).tar.gz logs/
+```
+
+**Restore**:
+
+```bash
+# Extract backup
+tar -xzf backup-YYYYMMDD.tar.gz
+
+# Restart containers
+docker-compose down
+docker-compose up -d
+```
+
+---
+
+### Docker Compose - Troubleshooting
+
+**Problem**: Container won't start
+
+```bash
+# Check logs
+docker-compose logs farm-scheduler
+
+# Check if port is already in use
+sudo lsof -i :3001
+
+# Remove old containers and rebuild
+docker-compose down
+docker-compose up -d --build
+```
+
+**Problem**: Can't connect to Google Sheets
+
+```bash
+# Verify service account file exists
+docker-compose exec farm-scheduler ls -la /app/server/service-account.json
+
+# Check environment variables
+docker-compose exec farm-scheduler env | grep SHEET_ID
+
+# Restart container
+docker-compose restart farm-scheduler
+```
+
+**Problem**: High memory usage
+
+```bash
+# Check resource usage
+docker stats
+
+# Set memory limits in docker-compose.yml:
+# deploy:
+#   resources:
+#     limits:
+#       memory: 512M
+#     reservations:
+#       memory: 256M
+
+# Restart with new limits
+docker-compose up -d
+```
+
+---
+
+### Docker Compose - Security Best Practices
+
+```bash
+# Run container as non-root user
+# Already configured in Dockerfile
+
+# Scan image for vulnerabilities
+docker scan farm-scheduler:latest
+
+# Keep Docker updated
+sudo apt update && sudo apt upgrade docker-ce
+
+# Use secrets for sensitive data (Docker Swarm)
+echo "your-sheet-id" | docker secret create sheet_id -
+
+# Enable Docker content trust
+export DOCKER_CONTENT_TRUST=1
+```
+
+---
+
+### Docker Compose - CI/CD Integration
+
+**GitHub Actions Example**:
+
+```yaml
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build Docker image
+        run: docker build -t farm-scheduler .
+
+      - name: Deploy to server
+        run: |
+          ssh user@server "cd /app && git pull && docker-compose up -d --build"
+```
+
+---
+
 ## Post-Deployment Configuration
 
 ### Update Google Sheets Service Account
@@ -574,6 +940,13 @@ npm install cors
 - **Bandwidth**: First 1GB free, then $0.12/GB (Asia)
 - **Static IP (optional)**: ~$3/month
 - **Total**: $0-30/month (depending on instance size and region)
+
+**Option 4: Docker on Any Platform**
+- **Local/On-Premise**: $0/month (uses your existing hardware)
+- **Digital Ocean Droplet**: $4-6/month (Basic droplet)
+- **AWS EC2 t3.micro**: ~$8/month
+- **Azure B1s**: ~$8/month
+- **Total**: $0-10/month (depending on hosting choice)
 
 ---
 

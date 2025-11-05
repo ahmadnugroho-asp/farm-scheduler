@@ -1,0 +1,52 @@
+# Node modules
+node_modules/
+server/node_modules/
+npm-debug.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Test
+coverage/
+tests/
+*.test.js
+
+# Documentation
+*.md
+!README.md
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+
+# Development files
+server/check-*.js
+server/debug-*.js
+server/show-*.js
+server/setup-dev.sh
+
+# Claude
+.claude/
+CLAUDE.md
