@@ -144,8 +144,3 @@ app.post('/api/update-status', async (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`\n✅ Server running and listening on http://localhost:${PORT}`));
-
-// Handles requests for any route not explicitly defined (will serve index.html)
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'client', 'index.html'));
-});
