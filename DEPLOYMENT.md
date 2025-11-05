@@ -92,6 +92,390 @@ If you prefer to host both frontend and backend together:
 
 ---
 
+### Option 4: Google Cloud Platform (Compute Engine with Ubuntu)
+
+Deploy on a GCP VM for full control and integration with Google services.
+
+#### Prerequisites
+
+- Google Cloud account with billing enabled
+- Basic knowledge of Linux/Ubuntu
+- SSH client installed
+
+#### Step 1: Create a Compute Engine Instance
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Navigate to **Compute Engine** → **VM instances**
+3. Click **"Create Instance"**
+4. Configure the instance:
+   - **Name**: `farm-scheduler-vm`
+   - **Region**: Choose closest to your users (e.g., `asia-southeast2` for Jakarta)
+   - **Zone**: Any zone in your region
+   - **Machine type**:
+     - For testing: `e2-micro` (0.25-2 vCPU, 1GB RAM) - Free tier eligible
+     - For production: `e2-small` (2 vCPU, 2GB RAM) or higher
+   - **Boot disk**:
+     - OS: **Ubuntu 22.04 LTS**
+     - Size: **10 GB** (minimum)
+     - Type: **Standard persistent disk**
+   - **Firewall**:
+     - ✅ Allow HTTP traffic
+     - ✅ Allow HTTPS traffic
+
+5. Click **"Create"**
+
+#### Step 2: Configure Firewall Rules
+
+1. Go to **VPC network** → **Firewall**
+2. Click **"Create Firewall Rule"**
+3. Configure:
+   - **Name**: `allow-app-port`
+   - **Direction**: Ingress
+   - **Targets**: All instances in the network
+   - **Source IP ranges**: `0.0.0.0/0`
+   - **Protocols and ports**: `tcp:3001`
+4. Click **"Create"**
+
+#### Step 3: Connect to the VM via SSH
+
+```bash
+# From GCP Console, click "SSH" button next to your instance
+# Or use gcloud CLI:
+gcloud compute ssh farm-scheduler-vm --zone=your-zone
+```
+
+#### Step 4: Install Required Software
+
+```bash
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 18.x (LTS)
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install Git
+sudo apt install -y git
+
+# Install Nginx (for reverse proxy)
+sudo apt install -y nginx
+
+# Install PM2 (process manager)
+sudo npm install -g pm2
+
+# Verify installations
+node --version
+npm --version
+git --version
+nginx -v
+pm2 --version
+```
+
+#### Step 5: Clone and Setup Application
+
+```bash
+# Create application directory
+sudo mkdir -p /var/www
+sudo chown $USER:$USER /var/www
+cd /var/www
+
+# Clone repository
+git clone https://github.com/ahmadnugroho-asp/farm-scheduler.git
+cd farm-scheduler/server
+
+# Install dependencies
+npm install
+
+# Create environment file
+cat > .env << EOF
+SHEET_ID=your_google_sheet_id_here
+PORT=3001
+EOF
+
+# Upload service account file (do this manually via SCP or paste content)
+nano service-account.json
+# Paste your service account JSON content, save with Ctrl+X, Y, Enter
+```
+
+#### Step 6: Configure Nginx as Reverse Proxy
+
+```bash
+# Create Nginx configuration
+sudo nano /etc/nginx/sites-available/farm-scheduler
+```
+
+Paste this configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name your-external-ip;  # Replace with your VM's external IP
+
+    # Frontend
+    location / {
+        root /var/www/farm-scheduler/client;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}
+```
+
+Save and enable the configuration:
+
+```bash
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/farm-scheduler /etc/nginx/sites-enabled/
+
+# Remove default site
+sudo rm /etc/nginx/sites-enabled/default
+
+# Test Nginx configuration
+sudo nginx -t
+
+# Restart Nginx
+sudo systemctl restart nginx
+sudo systemctl enable nginx
+```
+
+#### Step 7: Start Application with PM2
+
+```bash
+# Navigate to server directory
+cd /var/www/farm-scheduler/server
+
+# Start the application with PM2
+pm2 start server.js --name farm-scheduler
+
+# Save PM2 process list
+pm2 save
+
+# Setup PM2 to start on boot
+pm2 startup systemd
+# Copy and run the command that PM2 outputs
+
+# Check status
+pm2 status
+pm2 logs farm-scheduler
+```
+
+#### Step 8: Setup SSL with Let's Encrypt (Optional but Recommended)
+
+```bash
+# Install Certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# Get SSL certificate (replace with your domain)
+# If you don't have a domain, skip this step
+sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+
+# Certbot will automatically configure Nginx for HTTPS
+# Follow the prompts to complete setup
+
+# Test automatic renewal
+sudo certbot renew --dry-run
+```
+
+#### Step 9: Configure Domain (Optional)
+
+If you have a domain:
+
+1. Go to your domain registrar (e.g., Cloudflare, GoDaddy)
+2. Add an **A record** pointing to your VM's external IP:
+   - Type: `A`
+   - Name: `@` (for root domain) or `app` (for subdomain)
+   - Value: Your VM's external IP
+   - TTL: Automatic or 300
+
+3. Wait for DNS propagation (5-30 minutes)
+4. Update Nginx config with your domain name
+5. Setup SSL with Let's Encrypt (see Step 8)
+
+#### Step 10: Access Your Application
+
+- **Without domain**: `http://YOUR_VM_EXTERNAL_IP`
+- **With domain**: `http://your-domain.com` or `https://your-domain.com` (if SSL configured)
+- Get your external IP from GCP Console or run: `curl -4 icanhazip.com`
+
+---
+
+### GCP Deployment - Common Commands
+
+```bash
+# View application logs
+pm2 logs farm-scheduler
+
+# Restart application
+pm2 restart farm-scheduler
+
+# Stop application
+pm2 stop farm-scheduler
+
+# Delete application from PM2
+pm2 delete farm-scheduler
+
+# Update application
+cd /var/www/farm-scheduler
+git pull origin main
+cd server
+npm install
+pm2 restart farm-scheduler
+
+# Check Nginx status
+sudo systemctl status nginx
+
+# Restart Nginx
+sudo systemctl restart nginx
+
+# View Nginx error logs
+sudo tail -f /var/log/nginx/error.log
+
+# View Nginx access logs
+sudo tail -f /var/log/nginx/access.log
+
+# Check disk usage
+df -h
+
+# Check memory usage
+free -h
+
+# Monitor system resources
+htop  # Install with: sudo apt install htop
+```
+
+---
+
+### GCP Deployment - Firewall Configuration
+
+If you need to allow additional ports:
+
+```bash
+# Using gcloud CLI
+gcloud compute firewall-rules create allow-custom-port \
+    --allow tcp:8080 \
+    --source-ranges 0.0.0.0/0 \
+    --description "Allow custom port"
+```
+
+---
+
+### GCP Deployment - Backup Script
+
+Create a backup script for your data:
+
+```bash
+# Create backup script
+nano ~/backup.sh
+```
+
+Add this content:
+
+```bash
+#!/bin/bash
+BACKUP_DIR="/home/$USER/backups"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+mkdir -p $BACKUP_DIR
+
+# Backup application files
+tar -czf $BACKUP_DIR/app_$DATE.tar.gz /var/www/farm-scheduler
+
+# Backup environment file
+cp /var/www/farm-scheduler/server/.env $BACKUP_DIR/env_$DATE
+
+# Keep only last 7 days of backups
+find $BACKUP_DIR -name "app_*.tar.gz" -mtime +7 -delete
+
+echo "Backup completed: $BACKUP_DIR/app_$DATE.tar.gz"
+```
+
+Make it executable and setup cron:
+
+```bash
+chmod +x ~/backup.sh
+
+# Add to crontab (daily at 2 AM)
+crontab -e
+# Add this line:
+0 2 * * * /home/$USER/backup.sh >> /home/$USER/backup.log 2>&1
+```
+
+---
+
+### GCP Deployment - Monitoring Setup
+
+```bash
+# Install monitoring tools
+sudo apt install -y htop iotop nethogs
+
+# Setup basic monitoring with PM2
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 10M
+pm2 set pm2-logrotate:retain 7
+
+# Enable Nginx status page
+sudo nano /etc/nginx/sites-available/farm-scheduler
+# Add this inside the server block:
+# location /nginx_status {
+#     stub_status on;
+#     access_log off;
+#     allow 127.0.0.1;
+#     deny all;
+# }
+```
+
+---
+
+### GCP Deployment - Security Hardening
+
+```bash
+# Update security packages regularly
+sudo apt update && sudo apt upgrade -y
+
+# Setup automatic security updates
+sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Configure firewall with UFW
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow 'Nginx Full'
+sudo ufw allow 3001/tcp
+sudo ufw enable
+sudo ufw status
+
+# Disable root login via SSH
+sudo nano /etc/ssh/sshd_config
+# Set: PermitRootLogin no
+# Set: PasswordAuthentication no
+sudo systemctl restart sshd
+
+# Install fail2ban to prevent brute force
+sudo apt install -y fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+```
+
+---
+
 ## Post-Deployment Configuration
 
 ### Update Google Sheets Service Account
@@ -168,12 +552,28 @@ npm install cors
 ### Free Tier (Recommended for testing)
 - **Render Free Tier**: $0/month (spins down after 15 min of inactivity)
 - **Netlify Free Tier**: $0/month (100GB bandwidth)
+- **Railway Free Tier**: $5 free credit/month (then $0.000463/GB-sec)
+- **GCP Free Tier**: $0/month for e2-micro (1 instance, US regions only, 30GB storage)
 - **Total**: $0/month
 
 ### Paid Tier (For production)
+
+**Option 1: Render + Netlify**
 - **Render Starter**: $7/month (always on, better performance)
 - **Netlify Pro**: $19/month (if needed for advanced features)
 - **Total**: $7-26/month
+
+**Option 2: Railway**
+- **Usage-based pricing**: ~$5-15/month (depends on usage)
+
+**Option 3: Google Cloud Platform**
+- **e2-micro (Free Tier)**: $0/month (US regions only)
+- **e2-small**: ~$13/month (asia-southeast2)
+- **e2-medium**: ~$26/month (asia-southeast2)
+- **Storage**: ~$0.40/month (10GB standard disk)
+- **Bandwidth**: First 1GB free, then $0.12/GB (Asia)
+- **Static IP (optional)**: ~$3/month
+- **Total**: $0-30/month (depending on instance size and region)
 
 ---
 
