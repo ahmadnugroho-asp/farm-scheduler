@@ -4,6 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Farm Task Scheduler</title>
+    <!-- Suppress CDN console warnings -->
+    <script>
+        // Override console.warn to filter out CDN warnings
+        (function() {
+            const originalWarn = console.warn;
+            console.warn = function(...args) {
+                const message = args[0];
+                if (typeof message === 'string') {
+                    // Suppress Tailwind CDN warning
+                    if (message.includes('cdn.tailwindcss.com')) {
+                        return;
+                    }
+                    // Suppress Babel in-browser transformer warning
+                    if (message.includes('in-browser Babel transformer') ||
+                        message.includes('precompile your scripts')) {
+                        return;
+                    }
+                }
+                originalWarn.apply(console, args);
+            };
+        })();
+    </script>
     <!-- Load Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -26,7 +48,101 @@
     <script type="text/babel">
         // Paste the contents of FarmTaskScheduler.jsx here
         // ---------------------------------------------------------------------------------
-        
+
+        // --- Translations ---
+        const translations = {
+          en: {
+            appTitle: 'Farm Task Scheduler',
+            appSubtitle: 'Data refreshes every 30 seconds.',
+            testingNote: 'Testing Note: If the Node.js server is not running or the Google Sheet setup is incomplete, the app will automatically display Mock Data.',
+            lastUpdated: 'Last Updated:',
+            manualRefresh: 'Manual Refresh',
+            refreshing: 'Refreshing',
+            activeTasks: 'Active Tasks',
+            completedTasks: 'Completed Tasks',
+            assignedTo: 'Assigned To:',
+            schedule: 'Schedule:',
+            start: 'Start:',
+            finish: 'Finish:',
+            at: 'at',
+            updateStatus: 'Update Status',
+            completed: 'Completed',
+            updateTaskStatus: 'Update Task Status',
+            task: 'Task:',
+            newStatus: 'New Status',
+            enterPin: 'Enter 6-digit PIN to confirm',
+            cancel: 'Cancel',
+            confirmUpdate: 'Confirm Update',
+            updating: 'Updating...',
+            loading: 'Loading farm tasks...',
+            error: 'Error:',
+            statusNew: 'New',
+            statusInprogress: 'In Progress',
+            statusPending: 'Pending',
+            statusDone: 'Done',
+            appId: 'App ID',
+            addNewTask: 'Add New Task',
+            createTask: 'Create New Task',
+            taskName: 'Task Name',
+            taskDescription: 'Task Description',
+            dateStart: 'Start Date',
+            timeStart: 'Start Time',
+            dateFinish: 'Finish Date',
+            timeFinish: 'Finish Time',
+            personAssigned: 'Person Assigned',
+            confirmTaskCreation: 'Confirm Task Creation',
+            reviewTask: 'Please review the task details before creating:',
+            createNewTask: 'Create Task',
+            creating: 'Creating...',
+            taskCreatedSuccess: 'Task created successfully!'
+          },
+          id: {
+            appTitle: 'Penjadwal Tugas Peternakan',
+            appSubtitle: 'Data diperbarui setiap 30 detik.',
+            testingNote: 'Catatan Pengujian: Jika server Node.js tidak berjalan atau pengaturan Google Sheet belum lengkap, aplikasi akan secara otomatis menampilkan Data Mock.',
+            lastUpdated: 'Terakhir Diperbarui:',
+            manualRefresh: 'Perbarui Manual',
+            refreshing: 'Memperbarui',
+            activeTasks: 'Tugas Aktif',
+            completedTasks: 'Tugas Selesai',
+            assignedTo: 'Ditugaskan Kepada:',
+            schedule: 'Jadwal:',
+            start: 'Mulai:',
+            finish: 'Selesai:',
+            at: 'pada',
+            updateStatus: 'Perbarui Status',
+            completed: 'Selesai',
+            updateTaskStatus: 'Perbarui Status Tugas',
+            task: 'Tugas:',
+            newStatus: 'Status Baru',
+            enterPin: 'Masukkan PIN 6 digit untuk konfirmasi',
+            cancel: 'Batal',
+            confirmUpdate: 'Konfirmasi Perbarui',
+            updating: 'Memperbarui...',
+            loading: 'Memuat tugas peternakan...',
+            error: 'Kesalahan:',
+            statusNew: 'Baru',
+            statusInprogress: 'Sedang Dikerjakan',
+            statusPending: 'Tertunda',
+            statusDone: 'Selesai',
+            appId: 'ID Aplikasi',
+            addNewTask: 'Tambah Tugas Baru',
+            createTask: 'Buat Tugas Baru',
+            taskName: 'Nama Tugas',
+            taskDescription: 'Deskripsi Tugas',
+            dateStart: 'Tanggal Mulai',
+            timeStart: 'Waktu Mulai',
+            dateFinish: 'Tanggal Selesai',
+            timeFinish: 'Waktu Selesai',
+            personAssigned: 'Ditugaskan Kepada',
+            confirmTaskCreation: 'Konfirmasi Pembuatan Tugas',
+            reviewTask: 'Silakan tinjau detail tugas sebelum membuat:',
+            createNewTask: 'Buat Tugas',
+            creating: 'Membuat...',
+            taskCreatedSuccess: 'Tugas berhasil dibuat!'
+          }
+        };
+
         // --- API Endpoints and Fallback Data ---
         
         const MOCK_DATA = {
@@ -95,6 +211,29 @@
             };
           }
         };
+
+        const createTaskAPI = async (taskData, pin) => {
+          const payload = { ...taskData, pin };
+
+          try {
+            const response = await fetch('/api/create-task', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+              throw new Error(result.error || 'Failed to create task.');
+            }
+
+            return result;
+          } catch (e) {
+            console.warn(`[Client Warning] Real API create task call failed. Error: ${e.message}`);
+            throw e;
+          }
+        };
         // --- End API Endpoints and Fallback Data ---
         
         
@@ -105,13 +244,25 @@
           Pending: 'bg-red-100 text-red-800 border-red-300',
           Done: 'bg-green-100 text-green-800 border-green-300',
         };
-        
-        // Status options for the modal
+
+        // Status options for the modal (English keys, will be translated for display)
         const STATUS_OPTIONS = ['New', 'Inprogress', 'Pending', 'Done'];
+
+        // Helper function to get translated status label
+        const getStatusLabel = (status, lang) => {
+          const statusMap = {
+            'New': lang === 'id' ? 'Baru' : 'New',
+            'Inprogress': lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress',
+            'Pending': lang === 'id' ? 'Tertunda' : 'Pending',
+            'Done': lang === 'id' ? 'Selesai' : 'Done'
+          };
+          return statusMap[status] || status;
+        };
         
         
         // PinModal Component
-        const PinModal = ({ task, onConfirm, onCancel }) => {
+        const PinModal = ({ task, onConfirm, onCancel, language }) => {
+          const t = translations[language];
           const [pin, setPin] = React.useState('');
           const [status, setStatus] = React.useState(task.status);
           const [error, setError] = React.useState(null);
@@ -138,14 +289,14 @@
           return (
             <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition duration-300 scale-100">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Update Task Status</h2>
-                <p className="text-sm text-gray-600 mb-4">Task: <span className="font-semibold">{task.taskName}</span></p>
-        
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">{t.updateTaskStatus}</h2>
+                <p className="text-sm text-gray-600 mb-4">{t.task} <span className="font-semibold">{task.taskName}</span></p>
+
                 <form onSubmit={handleSubmit}>
                   {/* Status Selector */}
                   <div className="mb-4">
                     <label htmlFor="status-select" className="block text-sm font-medium text-gray-700 mb-1">
-                      New Status
+                      {t.newStatus}
                     </label>
                     <select
                       id="status-select"
@@ -155,15 +306,15 @@
                       required
                     >
                       {STATUS_OPTIONS.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
+                        <option key={opt} value={opt}>{getStatusLabel(opt, language)}</option>
                       ))}
                     </select>
                   </div>
-        
+
                   {/* PIN Input */}
                   <div className="mb-6">
                     <label htmlFor="pin-input" className="block text-sm font-medium text-gray-700 mb-1">
-                      Enter 6-digit PIN to confirm
+                      {t.enterPin}
                     </label>
                     <input
                       id="pin-input"
@@ -191,7 +342,7 @@
                       disabled={isUpdating}
                       className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
                     >
-                      Cancel
+                      {t.cancel}
                     </button>
                     <button
                       type="submit"
@@ -208,9 +359,9 @@
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          Updating...
+                          {t.updating}
                         </span>
-                      ) : 'Confirm Update'}
+                      ) : t.confirmUpdate}
                     </button>
                   </div>
                 </form>
@@ -218,15 +369,276 @@
             </div>
           );
         };
-        
-        
+
+
+        // CreateTaskModal Component - Step 1: Form
+        const CreateTaskModal = ({ onNext, onCancel, language, users }) => {
+          const t = translations[language];
+          const [formData, setFormData] = React.useState({
+            dateStart: '',
+            timeStart: '',
+            dateFinish: '',
+            timeFinish: '',
+            taskName: '',
+            taskDescription: '',
+            personAssigned: ''
+          });
+
+          const handleSubmit = (e) => {
+            e.preventDefault();
+            onNext(formData);
+          };
+
+          const handleChange = (field, value) => {
+            setFormData(prev => ({ ...prev, [field]: value }));
+          };
+
+          return (
+            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 my-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">{t.createTask}</h2>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Task Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.taskName}</label>
+                    <input
+                      type="text"
+                      value={formData.taskName}
+                      onChange={(e) => handleChange('taskName', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+
+                  {/* Task Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.taskDescription}</label>
+                    <textarea
+                      value={formData.taskDescription}
+                      onChange={(e) => handleChange('taskDescription', e.target.value)}
+                      rows="3"
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+
+                  {/* Person Assigned */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.personAssigned}</label>
+                    <select
+                      value={formData.personAssigned}
+                      onChange={(e) => handleChange('personAssigned', e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="">{language === 'id' ? 'Pilih Orang' : 'Select Person'}</option>
+                      {users.map((user, index) => (
+                        <option key={index} value={user.name}>
+                          {user.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Start Date */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.dateStart}</label>
+                      <input
+                        type="date"
+                        value={formData.dateStart}
+                        onChange={(e) => handleChange('dateStart', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Start Time */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.timeStart}</label>
+                      <input
+                        type="time"
+                        value={formData.timeStart}
+                        onChange={(e) => handleChange('timeStart', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Finish Date */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.dateFinish}</label>
+                      <input
+                        type="date"
+                        value={formData.dateFinish}
+                        onChange={(e) => handleChange('dateFinish', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Finish Time */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.timeFinish}</label>
+                      <input
+                        type="time"
+                        value={formData.timeFinish}
+                        onChange={(e) => handleChange('timeFinish', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={onCancel}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
+                    >
+                      {t.cancel}
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150 shadow-md"
+                    >
+                      {t.confirmTaskCreation}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        };
+
+
+        // ConfirmTaskModal Component - Step 2: Review and PIN
+        const ConfirmTaskModal = ({ taskData, onConfirm, onBack, onCancel, language }) => {
+          const t = translations[language];
+          const [pin, setPin] = React.useState('');
+          const [error, setError] = React.useState(null);
+          const [isCreating, setIsCreating] = React.useState(false);
+
+          const handleSubmit = async (e) => {
+            e.preventDefault();
+            if (pin.length !== 6 || isCreating) return;
+
+            setError(null);
+            setIsCreating(true);
+
+            try {
+              await onConfirm(taskData, pin);
+              setPin('');
+            } catch (err) {
+              setError(err.message || 'Failed to create task.');
+            } finally {
+              setIsCreating(false);
+            }
+          };
+
+          return (
+            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 my-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">{t.confirmTaskCreation}</h2>
+                <p className="text-sm text-gray-600 mb-4">{t.reviewTask}</p>
+
+                {/* Task Preview */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2 text-sm">
+                  <div><strong>{t.taskName}:</strong> {taskData.taskName}</div>
+                  <div><strong>{t.taskDescription}:</strong> {taskData.taskDescription}</div>
+                  <div><strong>{t.personAssigned}:</strong> {taskData.personAssigned}</div>
+                  <div><strong>{t.start}:</strong> {taskData.dateStart} {t.at} {taskData.timeStart}</div>
+                  <div><strong>{t.finish}:</strong> {taskData.dateFinish} {t.at} {taskData.timeFinish}</div>
+                </div>
+
+                <form onSubmit={handleSubmit}>
+                  {/* PIN Input */}
+                  <div className="mb-6">
+                    <label htmlFor="pin-input" className="block text-sm font-medium text-gray-700 mb-1">
+                      {t.enterPin}
+                    </label>
+                    <input
+                      id="pin-input"
+                      type="password"
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                      maxLength="6"
+                      className="w-full text-center tracking-widest text-xl p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 shadow-inner"
+                      placeholder="••••••"
+                      required
+                    />
+                  </div>
+
+                  {error && (
+                    <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4 border border-red-200">
+                      {error}
+                    </p>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="flex justify-between space-x-3">
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      disabled={isCreating}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
+                    >
+                      {t.cancel}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={pin.length !== 6 || isCreating}
+                      className={`px-4 py-2 rounded-lg text-white font-semibold transition duration-150 shadow-md ${
+                        pin.length === 6 && !isCreating
+                          ? 'bg-blue-600 hover:bg-blue-700'
+                          : 'bg-blue-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {isCreating ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          {t.creating}
+                        </span>
+                      ) : t.createNewTask}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        };
+
+
         // TaskItem Component
-        const TaskItem = ({ task, onUpdateClick }) => {
+        const TaskItem = ({ task, onUpdateClick, language }) => {
+          const t = translations[language];
           const statusClasses = STATUS_STYLES[task.status] || 'bg-gray-100 text-gray-700 border-gray-300';
         
           const formatTime = (date, time) => {
-            const d = new Date(`${date}T${time}:00`); 
-            return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            // Handle empty date or time
+            if (!date || !time) return 'N/A';
+
+            try {
+              // Parse date in format like "8-Nov-2025" to "2025-11-08"
+              // If time already includes AM/PM, just return it formatted
+              if (time.includes('AM') || time.includes('PM')) {
+                return time.replace(':00 ', ' '); // Remove seconds for cleaner display
+              }
+
+              // Otherwise try to parse as ISO format
+              const d = new Date(`${date} ${time}`);
+              if (isNaN(d.getTime())) {
+                return time; // Return time as-is if parsing fails
+              }
+              return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            } catch (e) {
+              return time; // Return time as-is on error
+            }
           };
         
           return (
@@ -234,23 +646,26 @@
               <div className="flex justify-between items-start mb-3">
                 <h3 className="text-lg font-bold text-gray-900 sm:text-xl">{task.taskName}</h3>
                 <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusClasses}`}>
-                  {task.status}
+                  {getStatusLabel(task.status, language)}
                 </span>
               </div>
-        
+
               <p className="text-sm text-gray-600 mb-3">{task.taskDescription}</p>
-        
-              <div className="grid grid-cols-2 gap-2 text-sm text-gray-500 mb-4">
+
+              <div className="grid grid-cols-1 gap-3 text-sm text-gray-500 mb-4">
                 <div>
-                  <span className="font-medium text-gray-700 block">Assigned To:</span>
+                  <span className="font-medium text-gray-700 block">{t.assignedTo}</span>
                   {task.personAssigned}
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700 block">Time:</span>
-                  {`${formatTime(task.dateStart, task.timeStart)} - ${formatTime(task.dateFinish, task.timeFinish)}`}
+                  <span className="font-medium text-gray-700 block">{t.schedule}</span>
+                  <div className="text-xs mt-1">
+                    <div>{t.start} {task.dateStart} {t.at} {formatTime(task.dateStart, task.timeStart)}</div>
+                    <div>{t.finish} {task.dateFinish} {t.at} {formatTime(task.dateFinish, task.timeFinish)}</div>
+                  </div>
                 </div>
               </div>
-        
+
               <div className="text-right border-t pt-3">
                 <button
                   onClick={() => onUpdateClick(task)}
@@ -261,7 +676,7 @@
                       : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
                   }`}
                 >
-                  {task.status === 'Done' ? 'Completed' : 'Update Status'}
+                  {task.status === 'Done' ? t.completed : t.updateStatus}
                 </button>
               </div>
             </div>
@@ -273,28 +688,45 @@
         const App = () => {
           // Mock/placeholder for environment variables
           const appId = 'TASK_SCHEDULER_APP';
-        
+
+          // Language state - default to Indonesian, persisted in localStorage
+          const [language, setLanguage] = React.useState(() => {
+            return localStorage.getItem('farmAppLanguage') || 'id';
+          });
+
+          // Update localStorage when language changes
+          React.useEffect(() => {
+            localStorage.setItem('farmAppLanguage', language);
+          }, [language]);
+
+          const t = translations[language];
+
           const [tasks, setTasks] = React.useState([]);
+          const [users, setUsers] = React.useState([]);
           const [loading, setLoading] = React.useState(true);
           const [error, setError] = React.useState(null);
-          const [modalTask, setModalTask] = React.useState(null); 
+          const [modalTask, setModalTask] = React.useState(null);
           const [lastUpdate, setLastUpdate] = React.useState(null);
+          const [showCreateTaskModal, setShowCreateTaskModal] = React.useState(false);
+          const [showConfirmTaskModal, setShowConfirmTaskModal] = React.useState(false);
+          const [newTaskData, setNewTaskData] = React.useState(null);
         
           const fetchData = React.useCallback(async () => {
             setLoading(true);
             setError(null);
             try {
               const data = await fetchTaskData();
-              
+
               const sortedTasks = data.tasks.sort((a, b) => {
                 const statusOrder = { 'New': 1, 'Inprogress': 2, 'Pending': 3, 'Done': 4 };
                 const statusDiff = statusOrder[a.status] - statusOrder[b.status];
                 if (statusDiff !== 0) return statusDiff;
-        
+
                 return new Date(a.dateStart) - new Date(b.dateStart);
               });
-        
+
               setTasks(sortedTasks);
+              setUsers(data.pins || []);
               setLastUpdate(new Date());
             } catch (err) {
               setError(`Failed to load farm tasks. Please check your Node.js backend setup. Error: ${err.message}`);
@@ -346,7 +778,42 @@
               throw err;
             }
           };
-        
+
+          // --- Create Task Handlers ---
+          const handleCreateTaskNext = (formData) => {
+            setNewTaskData(formData);
+            setShowCreateTaskModal(false);
+            setShowConfirmTaskModal(true);
+          };
+
+          const handleCreateTaskConfirm = async (taskData, pin) => {
+            try {
+              const result = await createTaskAPI(taskData, pin);
+
+              if (result.success) {
+                setShowConfirmTaskModal(false);
+                setNewTaskData(null);
+                // Trigger refresh to show new task
+                setTimeout(fetchData, 500);
+              } else {
+                throw new Error('Task creation failed unexpectedly.');
+              }
+            } catch (err) {
+              throw err;
+            }
+          };
+
+          const handleCreateTaskCancel = () => {
+            setShowCreateTaskModal(false);
+            setShowConfirmTaskModal(false);
+            setNewTaskData(null);
+          };
+
+          const handleCreateTaskBack = () => {
+            setShowConfirmTaskModal(false);
+            setShowCreateTaskModal(true);
+          };
+
           // --- Rendering Helpers ---
         
           const formatLastUpdate = (date) => {
@@ -361,89 +828,148 @@
             <div className="min-h-screen bg-gray-50 font-sans p-4 sm:p-6 lg:p-8">
               {/* Header */}
               <header className="mb-8 border-b pb-4">
-                <h1 className="text-3xl font-extrabold text-blue-800 tracking-tight sm:text-4xl">
-                  Farm Task Schedule
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">
-                  App ID: {appId}. Data refreshes every 30 seconds.
-                </p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h1 className="text-3xl font-extrabold text-blue-800 tracking-tight sm:text-4xl">
+                      {t.appTitle}
+                    </h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {t.appId}: {appId}. {t.appSubtitle}
+                    </p>
+                  </div>
+                  {/* Language Switcher */}
+                  <div className="flex bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+                    <button
+                      onClick={() => setLanguage('en')}
+                      className={`px-4 py-2 text-sm font-medium transition duration-150 ${
+                        language === 'en'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      EN
+                    </button>
+                    <button
+                      onClick={() => setLanguage('id')}
+                      className={`px-4 py-2 text-sm font-medium transition duration-150 ${
+                        language === 'id'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      ID
+                    </button>
+                  </div>
+                </div>
               </header>
-              
+
               <div className="p-3 bg-yellow-100 text-yellow-800 rounded-lg mb-6 text-sm border border-yellow-300 shadow-inner">
-                📌 **Testing Note:** If the Node.js server is not running or the Google Sheet setup is incomplete, the app will automatically display **Mock Data**.
+                📌 {t.testingNote}
               </div>
-        
+
               {/* Status Bar */}
               <div className="flex justify-between items-center mb-6 border-b pb-4">
                 <div className="text-sm font-medium text-gray-600">
-                  Last Updated: <span className="font-mono text-gray-800">{formatLastUpdate(lastUpdate)}</span>
+                  {t.lastUpdated} <span className="font-mono text-gray-800">{formatLastUpdate(lastUpdate)}</span>
                 </div>
-                <button
-                  onClick={fetchData}
-                  disabled={loading}
-                  className="flex items-center space-x-2 px-3 py-1 text-sm bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition duration-150 shadow-md disabled:opacity-50"
-                >
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowCreateTaskModal(true)}
+                    className="flex items-center space-x-2 px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150 shadow-md"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                    <span>{t.addNewTask}</span>
+                  </button>
+                  <button
+                    onClick={fetchData}
+                    disabled={loading}
+                    className="flex items-center space-x-2 px-3 py-1 text-sm bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition duration-150 shadow-md disabled:opacity-50"
+                  >
                   {loading ? (
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.655 5.14L7.5 7h-3V3a1 1 0 011-1zm3 14.899l-1.845-1.845a7.002 7.002 0 0111.488-3.006 1 1 0 11-.666 1.885A5.002 5.002 0 0013.345 14.86l1.845 1.845h-3v3a1 1 0 01-1 1zm8-10.899a1 1 0 011 1v2.101a7.002 7.002 0 01-11.601 2.566 1 1 0 111.885.666A5.002 5.002 0 0014.345 10.14l-1.845 1.845h3v3a1 1 0 01-1 1zm-3-4.899l1.845 1.845A7.002 7.002 0 014.512 7.006 1 1 0 115.178 5.12z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.655 5.14L7.5 7h-3V4a1 1 0 011-1z" clipRule="evenodd" />
                     </svg>
                   )}
-                  <span>{loading ? 'Refreshing' : 'Manual Refresh'}</span>
+                  <span>{loading ? t.refreshing : t.manualRefresh}</span>
                 </button>
               </div>
-        
-        
+            </div>
+
               {/* Main Content Area */}
               {error && (
                 <div className="p-4 bg-red-100 text-red-800 rounded-lg border border-red-300 mb-6">
-                  <p className="font-semibold">Error:</p>
+                  <p className="font-semibold">{t.error}</p>
                   <p>{error}</p>
                 </div>
               )}
-        
+
               {loading && tasks.length === 0 ? (
                 <div className="text-center p-10 text-gray-500">
                   <svg className="animate-spin mx-auto h-8 w-8 text-blue-500" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <p className="mt-3">Loading farm tasks...</p>
+                  <p className="mt-3">{t.loading}</p>
                 </div>
               ) : (
                 <>
                   {/* Pending / Active Tasks */}
                   <section className="mb-8">
-                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">Active Tasks ({pendingTasks.length})</h2>
+                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">{t.activeTasks} ({pendingTasks.length})</h2>
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                       {pendingTasks.map(task => (
-                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} />
+                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} language={language} />
                       ))}
                     </div>
                   </section>
         
                   {/* Completed Tasks */}
                   <section>
-                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">Completed Tasks ({doneTasks.length})</h2>
+                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">{t.completedTasks} ({doneTasks.length})</h2>
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 opacity-60">
                       {doneTasks.map(task => (
-                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} />
+                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} language={language} />
                       ))}
                     </div>
                   </section>
                 </>
               )}
-        
+
               {/* PIN Confirmation Modal */}
               {modalTask && (
                 <PinModal
                   task={modalTask}
                   onConfirm={handlePinConfirm}
                   onCancel={() => setModalTask(null)}
+                  language={language}
+                />
+              )}
+
+              {/* Create Task Modal */}
+              {showCreateTaskModal && (
+                <CreateTaskModal
+                  onNext={handleCreateTaskNext}
+                  onCancel={handleCreateTaskCancel}
+                  language={language}
+                  users={users}
+                />
+              )}
+
+              {/* Confirm Task Modal */}
+              {showConfirmTaskModal && newTaskData && (
+                <ConfirmTaskModal
+                  taskData={newTaskData}
+                  onConfirm={handleCreateTaskConfirm}
+                  onBack={handleCreateTaskBack}
+                  onCancel={handleCreateTaskCancel}
+                  language={language}
                 />
               )}
             </div>
