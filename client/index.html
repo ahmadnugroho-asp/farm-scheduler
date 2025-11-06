@@ -3,985 +3,417 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Farm Task Scheduler</title>
-    <!-- Suppress CDN console warnings -->
+    <title>Farm Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        .module-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .module-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
     <script>
-        // Override console.warn to filter out CDN warnings
+        // Suppress CDN warnings in production
         (function() {
             const originalWarn = console.warn;
             console.warn = function(...args) {
                 const message = args[0];
                 if (typeof message === 'string') {
-                    // Suppress Tailwind CDN warning
-                    if (message.includes('cdn.tailwindcss.com')) {
-                        return;
-                    }
-                    // Suppress Babel in-browser transformer warning
+                    if (message.includes('cdn.tailwindcss.com')) return;
                     if (message.includes('in-browser Babel transformer') ||
-                        message.includes('precompile your scripts')) {
-                        return;
-                    }
+                        message.includes('precompile your scripts')) return;
                 }
                 originalWarn.apply(console, args);
             };
         })();
     </script>
-    <!-- Load Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Use Inter font */
-        html, body {
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-        }
-    </style>
-</head>
-<body>
+
     <div id="root"></div>
-    <!-- Load React libraries -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <!-- Load Babel for JSX support -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- React Component Script -->
+
     <script type="text/babel">
-        // Paste the contents of FarmTaskScheduler.jsx here
-        // ---------------------------------------------------------------------------------
+        const { useState, useEffect } = React;
 
-        // --- Translations ---
+        // Translations
         const translations = {
-          en: {
-            appTitle: 'Farm Task Scheduler',
-            appSubtitle: 'Data refreshes every 30 seconds.',
-            testingNote: 'Testing Note: If the Node.js server is not running or the Google Sheet setup is incomplete, the app will automatically display Mock Data.',
-            lastUpdated: 'Last Updated:',
-            manualRefresh: 'Manual Refresh',
-            refreshing: 'Refreshing',
-            activeTasks: 'Active Tasks',
-            completedTasks: 'Completed Tasks',
-            assignedTo: 'Assigned To:',
-            schedule: 'Schedule:',
-            start: 'Start:',
-            finish: 'Finish:',
-            at: 'at',
-            updateStatus: 'Update Status',
-            completed: 'Completed',
-            updateTaskStatus: 'Update Task Status',
-            task: 'Task:',
-            newStatus: 'New Status',
-            enterPin: 'Enter 6-digit PIN to confirm',
-            cancel: 'Cancel',
-            confirmUpdate: 'Confirm Update',
-            updating: 'Updating...',
-            loading: 'Loading farm tasks...',
-            error: 'Error:',
-            statusNew: 'New',
-            statusInprogress: 'In Progress',
-            statusPending: 'Pending',
-            statusDone: 'Done',
-            appId: 'App ID',
-            addNewTask: 'Add New Task',
-            createTask: 'Create New Task',
-            taskName: 'Task Name',
-            taskDescription: 'Task Description',
-            dateStart: 'Start Date',
-            timeStart: 'Start Time',
-            dateFinish: 'Finish Date',
-            timeFinish: 'Finish Time',
-            personAssigned: 'Person Assigned',
-            confirmTaskCreation: 'Confirm Task Creation',
-            reviewTask: 'Please review the task details before creating:',
-            createNewTask: 'Create Task',
-            creating: 'Creating...',
-            taskCreatedSuccess: 'Task created successfully!'
-          },
-          id: {
-            appTitle: 'Penjadwal Tugas Peternakan',
-            appSubtitle: 'Data diperbarui setiap 30 detik.',
-            testingNote: 'Catatan Pengujian: Jika server Node.js tidak berjalan atau pengaturan Google Sheet belum lengkap, aplikasi akan secara otomatis menampilkan Data Mock.',
-            lastUpdated: 'Terakhir Diperbarui:',
-            manualRefresh: 'Perbarui Manual',
-            refreshing: 'Memperbarui',
-            activeTasks: 'Tugas Aktif',
-            completedTasks: 'Tugas Selesai',
-            assignedTo: 'Ditugaskan Kepada:',
-            schedule: 'Jadwal:',
-            start: 'Mulai:',
-            finish: 'Selesai:',
-            at: 'pada',
-            updateStatus: 'Perbarui Status',
-            completed: 'Selesai',
-            updateTaskStatus: 'Perbarui Status Tugas',
-            task: 'Tugas:',
-            newStatus: 'Status Baru',
-            enterPin: 'Masukkan PIN 6 digit untuk konfirmasi',
-            cancel: 'Batal',
-            confirmUpdate: 'Konfirmasi Perbarui',
-            updating: 'Memperbarui...',
-            loading: 'Memuat tugas peternakan...',
-            error: 'Kesalahan:',
-            statusNew: 'Baru',
-            statusInprogress: 'Sedang Dikerjakan',
-            statusPending: 'Tertunda',
-            statusDone: 'Selesai',
-            appId: 'ID Aplikasi',
-            addNewTask: 'Tambah Tugas Baru',
-            createTask: 'Buat Tugas Baru',
-            taskName: 'Nama Tugas',
-            taskDescription: 'Deskripsi Tugas',
-            dateStart: 'Tanggal Mulai',
-            timeStart: 'Waktu Mulai',
-            dateFinish: 'Tanggal Selesai',
-            timeFinish: 'Waktu Selesai',
-            personAssigned: 'Ditugaskan Kepada',
-            confirmTaskCreation: 'Konfirmasi Pembuatan Tugas',
-            reviewTask: 'Silakan tinjau detail tugas sebelum membuat:',
-            createNewTask: 'Buat Tugas',
-            creating: 'Membuat...',
-            taskCreatedSuccess: 'Tugas berhasil dibuat!'
-          }
+            en: {
+                appTitle: 'Farm Management System',
+                welcome: 'Welcome to',
+                subtitle: 'Manage your farm operations efficiently',
+                modules: 'Farm Modules',
+                taskScheduler: 'Task Scheduler',
+                taskSchedulerDesc: 'Plan and track daily farm tasks and assignments',
+                inventory: 'Inventory Management',
+                inventoryDesc: 'Track supplies, equipment, and resources',
+                livestock: 'Livestock Tracking',
+                livestockDesc: 'Monitor animal health, breeding, and production',
+                financial: 'Financial Management',
+                financialDesc: 'Track expenses, revenue, and financial reports',
+                reports: 'Reports & Analytics',
+                reportsDesc: 'View insights and generate farm reports',
+                settings: 'Settings',
+                settingsDesc: 'Configure system preferences and user accounts',
+                openModule: 'Open Module',
+                comingSoon: 'Coming Soon',
+                lastUpdate: 'Last updated',
+                footer: '© 2025 Farm Management System. All rights reserved.',
+                tasksByStatus: 'Tasks by Status',
+                statusNew: 'New',
+                statusInProgress: 'In Progress',
+                statusPending: 'Pending',
+                statusDone: 'Done',
+                totalTasks: 'Total Tasks',
+            },
+            id: {
+                appTitle: 'Sistem Manajemen Peternakan',
+                welcome: 'Selamat Datang di',
+                subtitle: 'Kelola operasi peternakan Anda dengan efisien',
+                modules: 'Modul Peternakan',
+                taskScheduler: 'Penjadwal Tugas',
+                taskSchedulerDesc: 'Rencanakan dan lacak tugas dan penugasan harian peternakan',
+                inventory: 'Manajemen Inventaris',
+                inventoryDesc: 'Lacak persediaan, peralatan, dan sumber daya',
+                livestock: 'Pelacakan Ternak',
+                livestockDesc: 'Monitor kesehatan, pembiakan, dan produksi hewan',
+                financial: 'Manajemen Keuangan',
+                financialDesc: 'Lacak pengeluaran, pendapatan, dan laporan keuangan',
+                reports: 'Laporan & Analitik',
+                reportsDesc: 'Lihat wawasan dan buat laporan peternakan',
+                settings: 'Pengaturan',
+                settingsDesc: 'Konfigurasi preferensi sistem dan akun pengguna',
+                openModule: 'Buka Modul',
+                comingSoon: 'Segera Hadir',
+                lastUpdate: 'Terakhir diperbarui',
+                footer: '© 2025 Sistem Manajemen Peternakan. Hak cipta dilindungi.',
+                tasksByStatus: 'Tugas Berdasarkan Status',
+                statusNew: 'Baru',
+                statusInProgress: 'Sedang Dikerjakan',
+                statusPending: 'Tertunda',
+                statusDone: 'Selesai',
+                totalTasks: 'Total Tugas',
+            }
         };
 
-        // --- API Endpoints and Fallback Data ---
-        
-        const MOCK_DATA = {
-          tasks: [
-            { id: 2, dateStart: '2025-10-10', timeStart: '10:00', dateFinish: '2025-10-10', timeFinish: '14:00', taskName: 'Harvest Apples (Gala)', taskDescription: 'Pick 50 bushels from the West orchard. (Mock Data)', personAssigned: 'Bob Smith', status: 'Inprogress' },
-            { id: 3, dateStart: '2025-10-10', timeStart: '14:00', dateFinish: '2025-10-10', timeFinish: '16:00', taskName: 'Tractor Maintenance', taskDescription: 'Oil change and tire pressure check on Tractor #2. (Mock Data)', personAssigned: 'Charlie Brown', status: 'Pending' },
-            { id: 4, dateStart: '2025-10-09', timeStart: '08:00', dateFinish: '2025-10-09', timeFinish: '11:00', taskName: 'Inspect Fences', taskDescription: 'Walk the perimeter of Field 1 and repair any breaks. (Mock Data)', personAssigned: 'Alice Johnson', status: 'Done' },
-            { id: 1, dateStart: '2025-10-10', timeStart: '07:00', dateFinish: '2025-10-10', timeFinish: '10:00', taskName: 'Irrigate Field 3', taskDescription: 'Check pump flow and water distribution across the north side. (Mock Data)', personAssigned: 'Alice Johnson', status: 'New' },
-          ],
-          pins: [
-            { pin: '123456', name: 'Alice Johnson' },
-            { pin: '987654', name: 'Bob Smith' },
-            { pin: '654321', name: 'Charlie Brown' },
-          ]
-        };
-        
-        const fetchTaskData = async () => {
-          try {
-            // --- REAL API CALL (Targets Node.js Backend) ---
-            const response = await fetch('/api/tasks'); 
-            if (!response.ok) throw new Error(`API Error: Status ${response.status}`);
-            return await response.json(); 
-          } catch (e) {
-            // --- FALLBACK TO MOCK DATA (if Node.js server is not running or failed) ---
-            console.warn(`[Client Warning] Real API call to /api/tasks failed. Using mock data. Error: ${e.message}`);
-            await new Promise(resolve => setTimeout(resolve, 500)); 
-            return MOCK_DATA;
-          }
-        };
-        
-        const updateTaskStatusAPI = async (taskId, newStatus, pin) => {
-          const payload = { taskId, newStatus, pin };
-          
-          try {
-            // --- REAL API CALL (Targets Node.js Backend) ---
-            const response = await fetch('/api/update-status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-        
-            const result = await response.json();
-            
-            if (!response.ok) {
-                // Backend returns error if PIN is invalid or sheet update fails
-                throw new Error(result.error || 'Server authentication failed or invalid request.');
+        // Module definitions
+        const modules = [
+            {
+                id: 'task-scheduler',
+                icon: '📋',
+                titleKey: 'taskScheduler',
+                descKey: 'taskSchedulerDesc',
+                url: '/task-scheduler.html',
+                available: true,
+                color: 'from-blue-500 to-blue-600'
+            },
+            {
+                id: 'inventory',
+                icon: '📦',
+                titleKey: 'inventory',
+                descKey: 'inventoryDesc',
+                url: null,
+                available: false,
+                color: 'from-green-500 to-green-600'
+            },
+            {
+                id: 'livestock',
+                icon: '🐄',
+                titleKey: 'livestock',
+                descKey: 'livestockDesc',
+                url: null,
+                available: false,
+                color: 'from-yellow-500 to-yellow-600'
+            },
+            {
+                id: 'financial',
+                icon: '💰',
+                titleKey: 'financial',
+                descKey: 'financialDesc',
+                url: null,
+                available: false,
+                color: 'from-purple-500 to-purple-600'
+            },
+            {
+                id: 'reports',
+                icon: '📊',
+                titleKey: 'reports',
+                descKey: 'reportsDesc',
+                url: null,
+                available: false,
+                color: 'from-red-500 to-red-600'
+            },
+            {
+                id: 'settings',
+                icon: '⚙️',
+                titleKey: 'settings',
+                descKey: 'settingsDesc',
+                url: null,
+                available: false,
+                color: 'from-gray-500 to-gray-600'
             }
-            
-            return result; 
-        
-          } catch (e) {
-            // --- FALLBACK TO MOCK VALIDATION (if server is unreachable) ---
-            console.warn(`[Client Warning] Real API update call failed. Using mock validation. Error: ${e.message}`);
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            const authUser = MOCK_DATA.pins.find(p => p.pin === pin);
-        
-            if (!authUser) {
-              throw new Error('Invalid 6-digit PIN (Mock validation failed).');
-            }
-        
-            return {
-              success: true,
-              message: `Task ${taskId} status updated to ${newStatus} by ${authUser.name} (Mock).`,
-              updaterName: authUser.name,
+        ];
+
+        function App() {
+            const [language, setLanguage] = useState('en');
+            const [currentTime, setCurrentTime] = useState(new Date());
+            const [tasks, setTasks] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            // Fetch tasks from API
+            const fetchTasks = async () => {
+                try {
+                    const response = await fetch('/api/tasks');
+                    if (response.ok) {
+                        const data = await response.json();
+                        setTasks(data.tasks || []);
+                    }
+                } catch (error) {
+                    console.log('Could not fetch tasks:', error);
+                    setTasks([]);
+                } finally {
+                    setLoading(false);
+                }
             };
-          }
-        };
 
-        const createTaskAPI = async (taskData, pin) => {
-          const payload = { ...taskData, pin };
+            useEffect(() => {
+                // Load language preference
+                const savedLanguage = localStorage.getItem('farmLanguage');
+                if (savedLanguage) {
+                    setLanguage(savedLanguage);
+                }
 
-          try {
-            const response = await fetch('/api/create-task', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
+                // Fetch tasks on mount
+                fetchTasks();
 
-            const result = await response.json();
+                // Update time every minute
+                const timer = setInterval(() => {
+                    setCurrentTime(new Date());
+                }, 60000);
 
-            if (!response.ok) {
-              throw new Error(result.error || 'Failed to create task.');
-            }
+                return () => clearInterval(timer);
+            }, []);
 
-            return result;
-          } catch (e) {
-            console.warn(`[Client Warning] Real API create task call failed. Error: ${e.message}`);
-            throw e;
-          }
-        };
-        // --- End API Endpoints and Fallback Data ---
-        
-        
-        // Status map for consistent styling
-        const STATUS_STYLES = {
-          New: 'bg-blue-100 text-blue-800 border-blue-300',
-          Inprogress: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-          Pending: 'bg-red-100 text-red-800 border-red-300',
-          Done: 'bg-green-100 text-green-800 border-green-300',
-        };
+            const t = translations[language];
 
-        // Status options for the modal (English keys, will be translated for display)
-        const STATUS_OPTIONS = ['New', 'Inprogress', 'Pending', 'Done'];
+            const handleLanguageChange = (newLang) => {
+                setLanguage(newLang);
+                localStorage.setItem('farmLanguage', newLang);
+            };
 
-        // Helper function to get translated status label
-        const getStatusLabel = (status, lang) => {
-          const statusMap = {
-            'New': lang === 'id' ? 'Baru' : 'New',
-            'Inprogress': lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress',
-            'Pending': lang === 'id' ? 'Tertunda' : 'Pending',
-            'Done': lang === 'id' ? 'Selesai' : 'Done'
-          };
-          return statusMap[status] || status;
-        };
-        
-        
-        // PinModal Component
-        const PinModal = ({ task, onConfirm, onCancel, language }) => {
-          const t = translations[language];
-          const [pin, setPin] = React.useState('');
-          const [status, setStatus] = React.useState(task.status);
-          const [error, setError] = React.useState(null);
-          const [isUpdating, setIsUpdating] = React.useState(false);
-        
-          const handleSubmit = async (e) => {
-            e.preventDefault();
-            if (pin.length !== 6 || isUpdating) return;
-        
-            setError(null);
-            setIsUpdating(true);
-        
-            try {
-              await onConfirm(task.id, status, pin);
-              setPin('');
-              // Modal closes upon successful confirmation in the parent component
-            } catch (err) {
-              setError(err.message || 'Authentication failed. Please check the PIN.');
-            } finally {
-              setIsUpdating(false);
-            }
-          };
-        
-          return (
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition duration-300 scale-100">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">{t.updateTaskStatus}</h2>
-                <p className="text-sm text-gray-600 mb-4">{t.task} <span className="font-semibold">{task.taskName}</span></p>
+            const handleModuleClick = (module) => {
+                if (module.available && module.url) {
+                    window.location.href = module.url;
+                }
+            };
 
-                <form onSubmit={handleSubmit}>
-                  {/* Status Selector */}
-                  <div className="mb-4">
-                    <label htmlFor="status-select" className="block text-sm font-medium text-gray-700 mb-1">
-                      {t.newStatus}
-                    </label>
-                    <select
-                      id="status-select"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg shadow-sm"
-                      required
-                    >
-                      {STATUS_OPTIONS.map(opt => (
-                        <option key={opt} value={opt}>{getStatusLabel(opt, language)}</option>
-                      ))}
-                    </select>
-                  </div>
+            // Calculate task counts by status
+            const taskCounts = {
+                new: tasks.filter(t => t.status === 'New').length,
+                inProgress: tasks.filter(t => t.status === 'Inprogress').length,
+                pending: tasks.filter(t => t.status === 'Pending').length,
+                done: tasks.filter(t => t.status === 'Done').length,
+                total: tasks.length
+            };
 
-                  {/* PIN Input */}
-                  <div className="mb-6">
-                    <label htmlFor="pin-input" className="block text-sm font-medium text-gray-700 mb-1">
-                      {t.enterPin}
-                    </label>
-                    <input
-                      id="pin-input"
-                      type="password"
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                      maxLength="6"
-                      className="w-full text-center tracking-widest text-xl p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 shadow-inner"
-                      placeholder="••••••"
-                      required
-                    />
-                  </div>
-        
-                  {error && (
-                    <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4 border border-red-200">
-                      {error}
-                    </p>
-                  )}
-        
-                  {/* Buttons */}
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={onCancel}
-                      disabled={isUpdating}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
-                    >
-                      {t.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={pin.length !== 6 || isUpdating}
-                      className={`px-4 py-2 rounded-lg text-white font-semibold transition duration-150 shadow-md ${
-                        pin.length === 6 && !isUpdating
-                          ? 'bg-blue-600 hover:bg-blue-700'
-                          : 'bg-blue-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {isUpdating ? (
-                        <span className="flex items-center">
-                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          {t.updating}
-                        </span>
-                      ) : t.confirmUpdate}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          );
-        };
+            return (
+                <div className="min-h-screen flex flex-col">
+                    {/* Header */}
+                    <header className="gradient-bg text-white shadow-lg">
+                        <div className="container mx-auto px-4 py-6">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h1 className="text-3xl font-bold">{t.appTitle}</h1>
+                                    <p className="text-blue-100 mt-1">{t.subtitle}</p>
+                                </div>
 
+                                {/* Language Switcher */}
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleLanguageChange('en')}
+                                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                            language === 'en'
+                                                ? 'bg-white text-purple-600'
+                                                : 'bg-purple-500 text-white hover:bg-purple-400'
+                                        }`}
+                                    >
+                                        EN
+                                    </button>
+                                    <button
+                                        onClick={() => handleLanguageChange('id')}
+                                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                            language === 'id'
+                                                ? 'bg-white text-purple-600'
+                                                : 'bg-purple-500 text-white hover:bg-purple-400'
+                                        }`}
+                                    >
+                                        ID
+                                    </button>
+                                </div>
+                            </div>
 
-        // CreateTaskModal Component - Step 1: Form
-        const CreateTaskModal = ({ onNext, onCancel, language, users }) => {
-          const t = translations[language];
-          const [formData, setFormData] = React.useState({
-            dateStart: '',
-            timeStart: '',
-            dateFinish: '',
-            timeFinish: '',
-            taskName: '',
-            taskDescription: '',
-            personAssigned: ''
-          });
+                            {/* Current Time */}
+                            <div className="mt-4 text-sm text-blue-100">
+                                {t.lastUpdate}: {currentTime.toLocaleString(language === 'id' ? 'id-ID' : 'en-US')}
+                            </div>
+                        </div>
+                    </header>
 
-          const handleSubmit = (e) => {
-            e.preventDefault();
-            onNext(formData);
-          };
+                    {/* Main Content */}
+                    <main className="flex-1 container mx-auto px-4 py-8">
+                        {/* Welcome Section */}
+                        <div className="text-center mb-12">
+                            <h2 className="text-4xl font-bold text-gray-800 mb-2">
+                                {t.welcome}
+                            </h2>
+                            <p className="text-xl text-gray-600">{t.appTitle}</p>
+                        </div>
 
-          const handleChange = (field, value) => {
-            setFormData(prev => ({ ...prev, [field]: value }));
-          };
+                        {/* Modules Grid */}
+                        <div className="mb-8">
+                            <h3 className="text-2xl font-bold text-gray-800 mb-6">{t.modules}</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {modules.map((module) => (
+                                    <div
+                                        key={module.id}
+                                        className={`module-card bg-white rounded-xl shadow-md overflow-hidden ${
+                                            module.available ? 'cursor-pointer' : 'opacity-75'
+                                        }`}
+                                        onClick={() => handleModuleClick(module)}
+                                    >
+                                        <div className={`h-2 bg-gradient-to-r ${module.color}`}></div>
+                                        <div className="p-6">
+                                            <div className="flex items-center mb-4">
+                                                <span className="text-4xl mr-3">{module.icon}</span>
+                                                <h4 className="text-xl font-bold text-gray-800">
+                                                    {t[module.titleKey]}
+                                                </h4>
+                                            </div>
+                                            <p className="text-gray-600 mb-4 h-12">
+                                                {t[module.descKey]}
+                                            </p>
+                                            <div className="flex items-center justify-between">
+                                                {module.available ? (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                                        {t.openModule}
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+                                                        {t.comingSoon}
+                                                    </span>
+                                                )}
+                                                <svg
+                                                    className={`w-5 h-5 ${
+                                                        module.available ? 'text-blue-500' : 'text-gray-400'
+                                                    }`}
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M9 5l7 7-7 7"
+                                                    />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
-          return (
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4 overflow-y-auto">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 my-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">{t.createTask}</h2>
+                        {/* Quick Stats Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-12">
+                            {/* Tasks by Status - Takes 2 columns on large screens */}
+                            <div className="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-bold text-gray-800">{t.tasksByStatus}</h3>
+                                    <div className="text-3xl">📋</div>
+                                </div>
+                                {loading ? (
+                                    <div className="text-gray-500 text-center py-4">Loading...</div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                        {/* Total Tasks */}
+                                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border-l-4 border-blue-500">
+                                            <p className="text-blue-600 text-xs font-medium mb-1">{t.totalTasks}</p>
+                                            <p className="text-3xl font-bold text-blue-700">{taskCounts.total}</p>
+                                        </div>
+                                        {/* New Tasks */}
+                                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border-l-4 border-gray-500">
+                                            <p className="text-gray-600 text-xs font-medium mb-1">{t.statusNew}</p>
+                                            <p className="text-3xl font-bold text-gray-700">{taskCounts.new}</p>
+                                        </div>
+                                        {/* In Progress */}
+                                        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 border-l-4 border-yellow-500">
+                                            <p className="text-yellow-600 text-xs font-medium mb-1">{t.statusInProgress}</p>
+                                            <p className="text-3xl font-bold text-yellow-700">{taskCounts.inProgress}</p>
+                                        </div>
+                                        {/* Pending */}
+                                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border-l-4 border-orange-500">
+                                            <p className="text-orange-600 text-xs font-medium mb-1">{t.statusPending}</p>
+                                            <p className="text-3xl font-bold text-orange-700">{taskCounts.pending}</p>
+                                        </div>
+                                        {/* Done */}
+                                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border-l-4 border-green-500">
+                                            <p className="text-green-600 text-xs font-medium mb-1">{t.statusDone}</p>
+                                            <p className="text-3xl font-bold text-green-700">{taskCounts.done}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* Task Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.taskName}</label>
-                    <input
-                      type="text"
-                      value={formData.taskName}
-                      onChange={(e) => handleChange('taskName', e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
-                  </div>
+                            {/* Other Stats - Placeholders */}
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-lg shadow-md p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-gray-600 text-sm mb-1">
+                                                {language === 'id' ? 'Item Inventaris' : 'Inventory Items'}
+                                            </p>
+                                            <p className="text-3xl font-bold text-gray-800">--</p>
+                                        </div>
+                                        <div className="text-4xl">📦</div>
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-lg shadow-md p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-gray-600 text-sm mb-1">
+                                                {language === 'id' ? 'Total Ternak' : 'Total Livestock'}
+                                            </p>
+                                            <p className="text-3xl font-bold text-gray-800">--</p>
+                                        </div>
+                                        <div className="text-4xl">🐄</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
 
-                  {/* Task Description */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.taskDescription}</label>
-                    <textarea
-                      value={formData.taskDescription}
-                      onChange={(e) => handleChange('taskDescription', e.target.value)}
-                      rows="3"
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
-                  </div>
-
-                  {/* Person Assigned */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.personAssigned}</label>
-                    <select
-                      value={formData.personAssigned}
-                      onChange={(e) => handleChange('personAssigned', e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    >
-                      <option value="">{language === 'id' ? 'Pilih Orang' : 'Select Person'}</option>
-                      {users.map((user, index) => (
-                        <option key={index} value={user.name}>
-                          {user.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Start Date */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.dateStart}</label>
-                      <input
-                        type="date"
-                        value={formData.dateStart}
-                        onChange={(e) => handleChange('dateStart', e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
-
-                    {/* Start Time */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.timeStart}</label>
-                      <input
-                        type="time"
-                        value={formData.timeStart}
-                        onChange={(e) => handleChange('timeStart', e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
-
-                    {/* Finish Date */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.dateFinish}</label>
-                      <input
-                        type="date"
-                        value={formData.dateFinish}
-                        onChange={(e) => handleChange('dateFinish', e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
-
-                    {/* Finish Time */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.timeFinish}</label>
-                      <input
-                        type="time"
-                        value={formData.timeFinish}
-                        onChange={(e) => handleChange('timeFinish', e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={onCancel}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
-                    >
-                      {t.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150 shadow-md"
-                    >
-                      {t.confirmTaskCreation}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          );
-        };
-
-
-        // ConfirmTaskModal Component - Step 2: Review and PIN
-        const ConfirmTaskModal = ({ taskData, onConfirm, onBack, onCancel, language }) => {
-          const t = translations[language];
-          const [pin, setPin] = React.useState('');
-          const [error, setError] = React.useState(null);
-          const [isCreating, setIsCreating] = React.useState(false);
-
-          const handleSubmit = async (e) => {
-            e.preventDefault();
-            if (pin.length !== 6 || isCreating) return;
-
-            setError(null);
-            setIsCreating(true);
-
-            try {
-              await onConfirm(taskData, pin);
-              setPin('');
-            } catch (err) {
-              setError(err.message || 'Failed to create task.');
-            } finally {
-              setIsCreating(false);
-            }
-          };
-
-          return (
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4 overflow-y-auto">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 my-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">{t.confirmTaskCreation}</h2>
-                <p className="text-sm text-gray-600 mb-4">{t.reviewTask}</p>
-
-                {/* Task Preview */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2 text-sm">
-                  <div><strong>{t.taskName}:</strong> {taskData.taskName}</div>
-                  <div><strong>{t.taskDescription}:</strong> {taskData.taskDescription}</div>
-                  <div><strong>{t.personAssigned}:</strong> {taskData.personAssigned}</div>
-                  <div><strong>{t.start}:</strong> {taskData.dateStart} {t.at} {taskData.timeStart}</div>
-                  <div><strong>{t.finish}:</strong> {taskData.dateFinish} {t.at} {taskData.timeFinish}</div>
+                    {/* Footer */}
+                    <footer className="bg-gray-800 text-white py-6 mt-12">
+                        <div className="container mx-auto px-4 text-center">
+                            <p className="text-gray-300">{t.footer}</p>
+                        </div>
+                    </footer>
                 </div>
+            );
+        }
 
-                <form onSubmit={handleSubmit}>
-                  {/* PIN Input */}
-                  <div className="mb-6">
-                    <label htmlFor="pin-input" className="block text-sm font-medium text-gray-700 mb-1">
-                      {t.enterPin}
-                    </label>
-                    <input
-                      id="pin-input"
-                      type="password"
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                      maxLength="6"
-                      className="w-full text-center tracking-widest text-xl p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 shadow-inner"
-                      placeholder="••••••"
-                      required
-                    />
-                  </div>
-
-                  {error && (
-                    <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg mb-4 border border-red-200">
-                      {error}
-                    </p>
-                  )}
-
-                  {/* Buttons */}
-                  <div className="flex justify-between space-x-3">
-                    <button
-                      type="button"
-                      onClick={onBack}
-                      disabled={isCreating}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
-                    >
-                      {t.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={pin.length !== 6 || isCreating}
-                      className={`px-4 py-2 rounded-lg text-white font-semibold transition duration-150 shadow-md ${
-                        pin.length === 6 && !isCreating
-                          ? 'bg-blue-600 hover:bg-blue-700'
-                          : 'bg-blue-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {isCreating ? (
-                        <span className="flex items-center">
-                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          {t.creating}
-                        </span>
-                      ) : t.createNewTask}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          );
-        };
-
-
-        // TaskItem Component
-        const TaskItem = ({ task, onUpdateClick, language }) => {
-          const t = translations[language];
-          const statusClasses = STATUS_STYLES[task.status] || 'bg-gray-100 text-gray-700 border-gray-300';
-        
-          const formatTime = (date, time) => {
-            // Handle empty date or time
-            if (!date || !time) return 'N/A';
-
-            try {
-              // Parse date in format like "8-Nov-2025" to "2025-11-08"
-              // If time already includes AM/PM, just return it formatted
-              if (time.includes('AM') || time.includes('PM')) {
-                return time.replace(':00 ', ' '); // Remove seconds for cleaner display
-              }
-
-              // Otherwise try to parse as ISO format
-              const d = new Date(`${date} ${time}`);
-              if (isNaN(d.getTime())) {
-                return time; // Return time as-is if parsing fails
-              }
-              return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-            } catch (e) {
-              return time; // Return time as-is on error
-            }
-          };
-        
-          return (
-            <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 p-4 mb-4 border-l-4 border-blue-500 sm:p-6">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-lg font-bold text-gray-900 sm:text-xl">{task.taskName}</h3>
-                <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusClasses}`}>
-                  {getStatusLabel(task.status, language)}
-                </span>
-              </div>
-
-              <p className="text-sm text-gray-600 mb-3">{task.taskDescription}</p>
-
-              <div className="grid grid-cols-1 gap-3 text-sm text-gray-500 mb-4">
-                <div>
-                  <span className="font-medium text-gray-700 block">{t.assignedTo}</span>
-                  {task.personAssigned}
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 block">{t.schedule}</span>
-                  <div className="text-xs mt-1">
-                    <div>{t.start} {task.dateStart} {t.at} {formatTime(task.dateStart, task.timeStart)}</div>
-                    <div>{t.finish} {task.dateFinish} {t.at} {formatTime(task.dateFinish, task.timeFinish)}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-right border-t pt-3">
-                <button
-                  onClick={() => onUpdateClick(task)}
-                  disabled={task.status === 'Done'}
-                  className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-md transition duration-150 ${
-                    task.status === 'Done'
-                      ? 'bg-gray-400 text-white cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
-                  }`}
-                >
-                  {task.status === 'Done' ? t.completed : t.updateStatus}
-                </button>
-              </div>
-            </div>
-          );
-        };
-        
-        
-        // Main App Component
-        const App = () => {
-          // Mock/placeholder for environment variables
-          const appId = 'TASK_SCHEDULER_APP';
-
-          // Language state - default to Indonesian, persisted in localStorage
-          const [language, setLanguage] = React.useState(() => {
-            return localStorage.getItem('farmAppLanguage') || 'id';
-          });
-
-          // Update localStorage when language changes
-          React.useEffect(() => {
-            localStorage.setItem('farmAppLanguage', language);
-          }, [language]);
-
-          const t = translations[language];
-
-          const [tasks, setTasks] = React.useState([]);
-          const [users, setUsers] = React.useState([]);
-          const [loading, setLoading] = React.useState(true);
-          const [error, setError] = React.useState(null);
-          const [modalTask, setModalTask] = React.useState(null);
-          const [lastUpdate, setLastUpdate] = React.useState(null);
-          const [showCreateTaskModal, setShowCreateTaskModal] = React.useState(false);
-          const [showConfirmTaskModal, setShowConfirmTaskModal] = React.useState(false);
-          const [newTaskData, setNewTaskData] = React.useState(null);
-        
-          const fetchData = React.useCallback(async () => {
-            setLoading(true);
-            setError(null);
-            try {
-              const data = await fetchTaskData();
-
-              const sortedTasks = data.tasks.sort((a, b) => {
-                const statusOrder = { 'New': 1, 'Inprogress': 2, 'Pending': 3, 'Done': 4 };
-                const statusDiff = statusOrder[a.status] - statusOrder[b.status];
-                if (statusDiff !== 0) return statusDiff;
-
-                return new Date(a.dateStart) - new Date(b.dateStart);
-              });
-
-              setTasks(sortedTasks);
-              setUsers(data.pins || []);
-              setLastUpdate(new Date());
-            } catch (err) {
-              setError(`Failed to load farm tasks. Please check your Node.js backend setup. Error: ${err.message}`);
-              console.error('Fetch error:', err);
-            } finally {
-              setLoading(false);
-            }
-          }, []);
-        
-          // Initial load and automatic refresh setup
-          React.useEffect(() => {
-            fetchData(); 
-        
-            const refreshInterval = setInterval(fetchData, 30000); // 30 seconds
-        
-            return () => clearInterval(refreshInterval);
-          }, [fetchData]);
-        
-          // --- Task Update Logic ---
-        
-          const handleUpdateClick = (task) => {
-            setModalTask(task);
-          };
-        
-          const handlePinConfirm = async (taskId, newStatus, pin) => {
-            try {
-              const { success, updaterName } = await updateTaskStatusAPI(taskId, newStatus, pin);
-        
-              if (success) {
-                // Optimistically update the local state for immediate feedback
-                setTasks(prevTasks => {
-                  const newTasks = [...prevTasks];
-                  const taskIndex = newTasks.findIndex(t => t.id === taskId);
-                  if (taskIndex !== -1) {
-                    newTasks[taskIndex] = { ...newTasks[taskIndex], status: newStatus };
-                  }
-                  return newTasks;
-                });
-        
-                setModalTask(null); // Close modal
-                console.log(`Task ${taskId} successfully set to ${newStatus} by ${updaterName}.`);
-                // Trigger a quick refresh
-                setTimeout(fetchData, 500);
-        
-              } else {
-                throw new Error('Status update failed unexpectedly.');
-              }
-            } catch (err) {
-              throw err;
-            }
-          };
-
-          // --- Create Task Handlers ---
-          const handleCreateTaskNext = (formData) => {
-            setNewTaskData(formData);
-            setShowCreateTaskModal(false);
-            setShowConfirmTaskModal(true);
-          };
-
-          const handleCreateTaskConfirm = async (taskData, pin) => {
-            try {
-              const result = await createTaskAPI(taskData, pin);
-
-              if (result.success) {
-                setShowConfirmTaskModal(false);
-                setNewTaskData(null);
-                // Trigger refresh to show new task
-                setTimeout(fetchData, 500);
-              } else {
-                throw new Error('Task creation failed unexpectedly.');
-              }
-            } catch (err) {
-              throw err;
-            }
-          };
-
-          const handleCreateTaskCancel = () => {
-            setShowCreateTaskModal(false);
-            setShowConfirmTaskModal(false);
-            setNewTaskData(null);
-          };
-
-          const handleCreateTaskBack = () => {
-            setShowConfirmTaskModal(false);
-            setShowCreateTaskModal(true);
-          };
-
-          // --- Rendering Helpers ---
-        
-          const formatLastUpdate = (date) => {
-            if (!date) return 'Never';
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-          };
-        
-          const pendingTasks = React.useMemo(() => tasks.filter(t => t.status !== 'Done'), [tasks]);
-          const doneTasks = React.useMemo(() => tasks.filter(t => t.status === 'Done'), [tasks]);
-        
-          return (
-            <div className="min-h-screen bg-gray-50 font-sans p-4 sm:p-6 lg:p-8">
-              {/* Header */}
-              <header className="mb-8 border-b pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h1 className="text-3xl font-extrabold text-blue-800 tracking-tight sm:text-4xl">
-                      {t.appTitle}
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {t.appId}: {appId}. {t.appSubtitle}
-                    </p>
-                  </div>
-                  {/* Language Switcher */}
-                  <div className="flex bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
-                    <button
-                      onClick={() => setLanguage('en')}
-                      className={`px-4 py-2 text-sm font-medium transition duration-150 ${
-                        language === 'en'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      EN
-                    </button>
-                    <button
-                      onClick={() => setLanguage('id')}
-                      className={`px-4 py-2 text-sm font-medium transition duration-150 ${
-                        language === 'id'
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      ID
-                    </button>
-                  </div>
-                </div>
-              </header>
-
-              <div className="p-3 bg-yellow-100 text-yellow-800 rounded-lg mb-6 text-sm border border-yellow-300 shadow-inner">
-                📌 {t.testingNote}
-              </div>
-
-              {/* Status Bar */}
-              <div className="flex justify-between items-center mb-6 border-b pb-4">
-                <div className="text-sm font-medium text-gray-600">
-                  {t.lastUpdated} <span className="font-mono text-gray-800">{formatLastUpdate(lastUpdate)}</span>
-                </div>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setShowCreateTaskModal(true)}
-                    className="flex items-center space-x-2 px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150 shadow-md"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                    </svg>
-                    <span>{t.addNewTask}</span>
-                  </button>
-                  <button
-                    onClick={fetchData}
-                    disabled={loading}
-                    className="flex items-center space-x-2 px-3 py-1 text-sm bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition duration-150 shadow-md disabled:opacity-50"
-                  >
-                  {loading ? (
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.655 5.14L7.5 7h-3V4a1 1 0 011-1z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                  <span>{loading ? t.refreshing : t.manualRefresh}</span>
-                </button>
-              </div>
-            </div>
-
-              {/* Main Content Area */}
-              {error && (
-                <div className="p-4 bg-red-100 text-red-800 rounded-lg border border-red-300 mb-6">
-                  <p className="font-semibold">{t.error}</p>
-                  <p>{error}</p>
-                </div>
-              )}
-
-              {loading && tasks.length === 0 ? (
-                <div className="text-center p-10 text-gray-500">
-                  <svg className="animate-spin mx-auto h-8 w-8 text-blue-500" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <p className="mt-3">{t.loading}</p>
-                </div>
-              ) : (
-                <>
-                  {/* Pending / Active Tasks */}
-                  <section className="mb-8">
-                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">{t.activeTasks} ({pendingTasks.length})</h2>
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                      {pendingTasks.map(task => (
-                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} language={language} />
-                      ))}
-                    </div>
-                  </section>
-        
-                  {/* Completed Tasks */}
-                  <section>
-                    <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">{t.completedTasks} ({doneTasks.length})</h2>
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 opacity-60">
-                      {doneTasks.map(task => (
-                        <TaskItem key={task.id} task={task} onUpdateClick={handleUpdateClick} language={language} />
-                      ))}
-                    </div>
-                  </section>
-                </>
-              )}
-
-              {/* PIN Confirmation Modal */}
-              {modalTask && (
-                <PinModal
-                  task={modalTask}
-                  onConfirm={handlePinConfirm}
-                  onCancel={() => setModalTask(null)}
-                  language={language}
-                />
-              )}
-
-              {/* Create Task Modal */}
-              {showCreateTaskModal && (
-                <CreateTaskModal
-                  onNext={handleCreateTaskNext}
-                  onCancel={handleCreateTaskCancel}
-                  language={language}
-                  users={users}
-                />
-              )}
-
-              {/* Confirm Task Modal */}
-              {showConfirmTaskModal && newTaskData && (
-                <ConfirmTaskModal
-                  taskData={newTaskData}
-                  onConfirm={handleCreateTaskConfirm}
-                  onBack={handleCreateTaskBack}
-                  onCancel={handleCreateTaskCancel}
-                  language={language}
-                />
-              )}
-            </div>
-          );
-        };
-        
-        // Render the main App component
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(<App />);
-
-        // ---------------------------------------------------------------------------------
+        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
